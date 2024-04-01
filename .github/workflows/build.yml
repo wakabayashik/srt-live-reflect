@@ -46,14 +46,6 @@ jobs:
           aws-sdk-cpp[s3]
         triplet: x64-linux
         token: ${{ github.token }}
-    - name: sed Makefile
-      run: >
-        sed -i.bak
-        -e "s/\/usr\/lib64\/libz\.so\.1//"
-        -e "s/-lcurl/-lcurl -lz/"
-        -e "/INCDIR/ s/\.\.\/vcpkg\//\.\/vcpkg\//"
-        -e "/LIBDIR/ s/\.\.\/vcpkg\//\.\/vcpkg\//"
-        ./Makefile
     - name: make
       run: make USE_AWSSDK=1
     - name: archive production artifacts
