@@ -384,7 +384,7 @@ public:
         while (pos_ + read_ >= next_) {
             std::streamoff next = 0;
             boost::chrono::steady_clock::time_point s1 = boost::chrono::steady_clock::now();
-            size_t idx_read = idx_stream_->read(reinterpret_cast<char*>(&next), sizeof(std::streamoff)).gcount();
+            std::streamsize idx_read = idx_stream_->read(reinterpret_cast<char*>(&next), sizeof(std::streamoff)).gcount();
             int64_t e1 = (boost::chrono::steady_clock::now() - s1).count();
             if (e1 >= 1000ll * 1000 * 30) {
                 Logger::Debug(boost::format("%s : it took %lf[ms] to read the index") % log_prefix_ % (static_cast<double>(e1) / 1000.0 / 1000.0));

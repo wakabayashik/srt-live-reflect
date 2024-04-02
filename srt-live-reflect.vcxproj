@@ -61,32 +61,32 @@
     <ProjectGuid>{1CC180F6-C5BB-4EA1-8361-50ECB754B69B}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>srtlivereflect</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -110,31 +110,31 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>C:\boost\boost_1_79_0;$(IncludePath)</IncludePath>
+    <IncludePath>C:\boost\boost_1_84_0;$(IncludePath)</IncludePath>
     <OutDir>$(ProjectDir)bin/$(Platform)/$(Configuration)/</OutDir>
     <IntDir>$(ProjectDir)obj/$(Platform)/$(Configuration)/</IntDir>
-    <LibraryPath>C:\boost\boost_1_79_0\lib32-msvc-14.1;$(LibraryPath)</LibraryPath>
+    <LibraryPath>C:\boost\boost_1_84_0\lib32-msvc-14.3;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>C:\boost\boost_1_79_0;$(IncludePath)</IncludePath>
+    <IncludePath>C:\boost\boost_1_84_0;$(IncludePath)</IncludePath>
     <TargetName>$(ProjectName)_$(Configuration)</TargetName>
-    <LibraryPath>C:\boost\boost_1_79_0\lib32-msvc-14.1;$(LibraryPath)</LibraryPath>
+    <LibraryPath>C:\boost\boost_1_84_0\lib32-msvc-14.3;$(LibraryPath)</LibraryPath>
     <OutDir>$(ProjectDir)bin/$(Platform)/$(Configuration)/</OutDir>
     <IntDir>$(ProjectDir)obj/$(Platform)/$(Configuration)/</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <LibraryPath>C:\boost\boost_1_79_0\lib64-msvc-14.1;$(LibraryPath)</LibraryPath>
-    <IncludePath>C:\boost\boost_1_79_0;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\boost\boost_1_84_0\lib64-msvc-14.3;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\boost\boost_1_84_0;$(IncludePath)</IncludePath>
     <OutDir>$(ProjectDir)bin/$(Platform)/$(Configuration)/</OutDir>
     <IntDir>$(ProjectDir)obj/$(Platform)/$(Configuration)/</IntDir>
     <TargetName>$(ProjectName)_$(Configuration)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>C:\boost\boost_1_79_0;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\boost\boost_1_79_0\lib64-msvc-14.1;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\boost\boost_1_84_0;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\boost\boost_1_84_0\lib64-msvc-14.3;$(LibraryPath)</LibraryPath>
     <OutDir>$(ProjectDir)bin/$(Platform)/$(Configuration)/</OutDir>
     <IntDir>$(ProjectDir)obj/$(Platform)/$(Configuration)/</IntDir>
   </PropertyGroup>

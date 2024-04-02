@@ -168,7 +168,7 @@ public:
         if (!IsRunning()) return false;
         abort_requested_ = true;
         client_->DisableRequestProcessing(); // all requests sharing the s3client will be aborted
-        buf_.SetEof();
+        buf_.SetEofInput();
         return true;
     }
     virtual std::istream& GetStream() {
@@ -187,7 +187,7 @@ public:
             const Aws::S3::Model::GetObjectRequest& request, const Aws::S3::Model::GetObjectOutcome& outcome,
             const std::shared_ptr<const Aws::Client::AsyncCallerContext>& context) {
             lock_t lk(mutex_);
-            buf_.SetEof();
+            buf_.SetEofInput();
             if (!outcome.IsSuccess()) {
                 const Aws::S3::S3Error& err = outcome.GetError();
                 if (abort_requested_) {
@@ -655,10 +655,10 @@ bool AWS::Test() {
         for (int i = 0; ; ++i) {
             //if (i >= 3) get.Abort();
             buf.resize(10);
-            buf.resize(get.GetStream().read(&buf.at(0), buf.size()).gcount());
-            if (!buf.size()) break;
-            std::cout << "read: " << buf.size() << std::endl;
-            ss << std::string(&buf.at(0), buf.size());
+            std::streamsize read = get.GetStream().read(&buf.at(0), buf.size()).gcount();
+            if (read <= 0) break;
+            std::cout << "read: " << read << std::endl;
+            ss << std::string(&buf.at(0), static_cast<size_t>(read));
         }
         std::string str = ss.str();
         std::cout << "total read: " << str.length() << std::endl;
