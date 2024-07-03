@@ -444,7 +444,7 @@ protected:
             }
         }
         srt_close(sfd);
-        errmsgs_ << boost::format("the connection from [ %s ] is not accepted(2); %s") % peer.ToString(), streamOption();
+        errmsgs_ << boost::format("the connection from [ %s ] is not accepted(2); %s") % peer.ToString() % streamOption();
     }
     virtual int ListenCallback(SRTSOCKET ns, int hsversion, const struct sockaddr* peeraddr, const char* streamid) {
         // called from thread of srt core when new connection arrived
