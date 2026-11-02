@@ -219,14 +219,14 @@ void Json::pretty_print(std::ostream& os, const boost::json::value& jv, int32_t 
                 break;
             }
             os << "{\n";
-            std::string prefix = std::string(++depth * indent, ' ');
+            std::string prefix = std::string(static_cast<std::string::size_type>(++depth) * indent, ' ');
             for (boost::json::object::const_iterator it = obj.begin(), end = obj.end();;) {
                 os << prefix << boost::json::serialize(it->key()) << ": ";
                 pretty_print(os, it->value(), indent, max_depth, depth);
                 if (++it == end) break;
                 os << ",\n";
             }
-            os << "\n" << std::string(--depth * indent, ' ') << "}";
+            os << "\n" << std::string(static_cast<std::string::size_type>(--depth) * indent, ' ') << "}";
             break;
         }
         case boost::json::kind::array: {
@@ -236,14 +236,14 @@ void Json::pretty_print(std::ostream& os, const boost::json::value& jv, int32_t 
                 break;
             }
             os << "[\n";
-            std::string prefix = std::string(++depth * indent, ' ');
+            std::string prefix = std::string(static_cast<std::string::size_type>(++depth) * indent, ' ');
             for (boost::json::array::const_iterator it = arr.begin(), end = arr.end();;) {
                 os << prefix;
                 pretty_print(os, *it, indent, max_depth, depth);
                 if (++it == end) break;
                 os << ",\n";
             }
-            os << "\n" << std::string(--depth * indent, ' ') << "]";
+            os << "\n" << std::string(static_cast<std::string::size_type>(--depth) * indent, ' ') << "]";
             break;
         }
         case boost::json::kind::string: {
