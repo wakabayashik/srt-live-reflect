@@ -8,8 +8,8 @@ DISTRO_ID := $(shell . /etc/os-release; echo $$ID)
 UNAME_M  := $(shell uname -m)
 ifeq ($(DISTRO_ID),amzn)
 	ifeq ($(UNAME_M),x86_64)
-		INCDIR   = -I./src -I../vcpkg/installed/x64-linux/include
-		LIBDIR   = -L../vcpkg/installed/x64-linux/lib/
+		INCDIR   = -I./src -I./vcpkg_installed/x64-linux/include
+		LIBDIR   = -L./vcpkg_installed/x64-linux/lib/
 		LIBS     = /usr/lib64/libz.so.1
 	else ifeq ($(UNAME_M),aarch64)
 		echo "Unsupported architecture."
@@ -17,12 +17,12 @@ ifeq ($(DISTRO_ID),amzn)
 	endif
 else ifeq ($(DISTRO_ID),ubuntu)
 	ifeq ($(UNAME_M),x86_64)
-		INCDIR   = -I./src -I../vcpkg/installed/x64-linux/include
-		LIBDIR   = -L../vcpkg/installed/x64-linux/lib/
+		INCDIR   = -I./src -I./vcpkg_installed/x64-linux/include
+		LIBDIR   = -L./vcpkg_installed/x64-linux/lib/
 		LIBS     = /usr/lib/x86_64-linux-gnu/libz.so.1
 	else ifeq ($(UNAME_M),aarch64)
-		INCDIR   = -I./src -I../vcpkg/installed/arm64-linux/include
-		LIBDIR   = -L../vcpkg/installed/arm64-linux/lib/
+		INCDIR   = -I./src -I./vcpkg_installed/arm64-linux/include
+		LIBDIR   = -L./vcpkg_installed/arm64-linux/lib/
 		LIBS     = /usr/lib/aarch64-linux-gnu/libz.so.1
 	endif
 endif

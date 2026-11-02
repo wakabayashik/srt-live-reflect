@@ -53,12 +53,6 @@ jobs:
 
     - name: vcpkg build
       run: vcpkg install --triplet x64-linux
-    - name: sed Makefile
-      run: >
-        sed -i.bak
-        -e "/INCDIR/ s/\.\.\/vcpkg\//\.\/vcpkg\//"
-        -e "/LIBDIR/ s/\.\.\/vcpkg\//\.\/vcpkg\//"
-        ./Makefile
     - name: make
       run: make USE_AWSSDK=1
 
