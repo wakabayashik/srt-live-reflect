@@ -23,7 +23,10 @@ jobs:
     - name: install make
       run: sudo apt install make -y
     - name: vcpkg build
-      run: vcpkg install --triplet x64-linux
+      run: |
+        unset VCPKG_DEFAULT_BINARY_CACHE
+        export VCPKG_MANIFEST_MODE=true
+        $VCPKG_INSTALLATION_ROOT/vcpkg install --triplet x64-linux
     - name: sed Makefile
       run: >
         sed -i.bak
