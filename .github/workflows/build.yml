@@ -1,6 +1,5 @@
 name: build srt-live-reflect
-# run-name: ${{ github.actor }} is building srt-live-reflect
-run-name: test-build-run
+run-name: ${{ github.actor }} is building srt-live-reflect
 on:
   push:
     branches: ["develop"]
@@ -28,7 +27,7 @@ jobs:
     - name: make
       run: make USE_AWSSDK=1
     - name: archive production artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: srt-live-reflect
         path: |
