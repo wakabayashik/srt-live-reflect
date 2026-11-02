@@ -179,23 +179,23 @@ void    URIUtil::SplitURI(const char* uri, std::string* scheme, std::string* aut
     if (*c != '?' && *c != '#') {
         const char* cc = SeekDelimiter(c, "?#");
         if (!cc) {
-            path->append(c);
+            if (path) path->append(c);
             return;
         }
-        path->append(c, cc - c);
+        if (path) path->append(c, cc - c);
         c = cc;
     }
     if (*c == '?') {
         const char* cc = strchr(++c, '#');
         if (!cc) {
-            query->append(c);
+            if (query) query->append(c);
             return;
         }
-        query->append(c, cc - c);
+        if (query) query->append(c, cc - c);
         c = cc;
     }
     ++c;
-    fragment->append(c);
+    if (fragment) fragment->append(c);
 }
 
 //----------------------------------------------------------------------------
@@ -262,11 +262,11 @@ void    URIUtil::SplitAuthority(const char* authority, std::string* user, std::s
     if (c) {
         const char* cc = strchr(authority, ':');
         if (cc && cc < c) {
-            user->append(authority, cc - authority);
+            if (user) user->append(authority, cc - authority);
             ++cc;
-            password->append(cc, c - cc);
+            if (password) password->append(cc, c - cc);
         } else {
-            user->append(authority, c - authority);
+            if (user) user->append(authority, c - authority);
         }
         ++c;
     } else {
@@ -277,16 +277,16 @@ void    URIUtil::SplitAuthority(const char* authority, std::string* user, std::s
         const char* cc = strchr(c, ']');
         if (*c == '[' && cc) {
             ++c;
-            host->append(c, cc - c);
+            if (host) host->append(c, cc - c);
             ++cc;
             if (*cc == '\0' || *cc != ':') return;
         } else {
             cc = strchr(c, ':');
             if (!cc) {
-                host->append(c);
+                if (host) host->append(c);
                 return;
             }
-            host->append(c, cc - c);
+            if (host) host->append(c, cc - c);
         }
         c = ++cc;
     }
