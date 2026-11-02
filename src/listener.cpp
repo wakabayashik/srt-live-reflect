@@ -60,7 +60,7 @@ public:
                     errmsgs_ << boost::format("failed srt_setsockflag(SRTO_IPV6ONLY) [ %d ]; %s") % ipv6Only % srt_getlasterror_str();
                     return false;
                 }
-            } else if (host.empty() && (!sfds_.empty() || res->ai_next)) {
+            } else if (host.empty()) {
                 // ignore IPv4 because IPv4-mapped IPv6 would work
                 srt_close(sfd);
                 continue;
@@ -74,13 +74,13 @@ public:
                 srt_close(sfd);
                 continue;
             }
-            if (srt_listen(sfd, option_.Get<int>("backlog", 10)) == SRT_ERROR) {
-                errmsgs_ << boost::format("failed srt_listen(); %s") % srt_getlasterror_str();
+            if (srt_listen_callback(sfd, ListenCallbackWrapper, this) == SRT_ERROR) {
+                errmsgs_ << boost::format("failed srt_listen_callback(); %s") % srt_getlasterror_str();
                 srt_close(sfd);
                 continue;
             }
-            if (srt_listen_callback(sfd, ListenCallbackWrapper, this) == SRT_ERROR) {
-                errmsgs_ << boost::format("failed srt_listen_callback(); %s") % srt_getlasterror_str();
+            if (srt_listen(sfd, option_.Get<int>("backlog", 10)) == SRT_ERROR) {
+                errmsgs_ << boost::format("failed srt_listen(); %s") % srt_getlasterror_str();
                 srt_close(sfd);
                 continue;
             }
