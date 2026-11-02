@@ -52,7 +52,10 @@ jobs:
         # queries: security-extended,security-and-quality
 
     - name: vcpkg build
-      run: vcpkg install --triplet x64-linux
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgJsonGlob: 'vcpkg.json'
+        appendedArgs: '--triplet x64-linux'
     - name: make
       run: make USE_AWSSDK=1
 
