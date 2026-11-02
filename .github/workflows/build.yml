@@ -1,5 +1,6 @@
 name: build srt-live-reflect
-run-name: ${{ github.actor }} is building srt-live-reflect
+# run-name: ${{ github.actor }} is building srt-live-reflect
+run-name: test-build-run
 on:
   push:
     branches: ["develop"]
