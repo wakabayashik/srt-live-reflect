@@ -51,13 +51,13 @@ jobs:
         # Details on CodeQL's query packs refer to : https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
         # queries: security-extended,security-and-quality
 
-    - name: vcpkg build
-      uses: lukka/run-vcpkg@v11
+    - name: Cache vcpkg_installed
+      uses: actions/cache@v4
       with:
-        vcpkgJsonGlob: 'vcpkg.json'
-        runVcpkgInstall: true
-      env:
-        VCPKG_DEFAULT_TRIPLET: x64-linux
+        path: vcpkg_installed
+        key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+    - name: vcpkg build
+      run: vcpkg install --triplet x64-linux
     - name: make
       run: make USE_AWSSDK=1
 

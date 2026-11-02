@@ -22,13 +22,13 @@ jobs:
       run: sudo apt install linux-libc-dev -y
     - name: install make
       run: sudo apt install make -y
-    - name: vcpkg build
-      uses: lukka/run-vcpkg@v11
+    - name: Cache vcpkg_installed
+      uses: actions/cache@v4
       with:
-        vcpkgJsonGlob: 'vcpkg.json'
-        runVcpkgInstall: true
-      env:
-        VCPKG_DEFAULT_TRIPLET: x64-linux
+        path: vcpkg_installed
+        key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+    - name: vcpkg build
+      run: vcpkg install --triplet x64-linux
     - name: make
       run: make USE_AWSSDK=1
     - name: archive production artifacts
