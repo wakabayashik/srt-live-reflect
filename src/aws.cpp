@@ -399,18 +399,22 @@ public:
     virtual void Log(Aws::Utils::Logging::LogLevel logLevel, const char* tag, const char* formatStr, ...) override {
         va_list ap;
         va_start(ap, formatStr);
+        vaLog(logLevel, tag, formatStr, ap);
+        va_end(ap);
+    }
+    virtual void vaLog(Aws::Utils::Logging::LogLevel logLevel, const char* tag, const char* formatStr, va_list args) override {
 #if defined(WIN32) || defined(WIN64)
-        size_t len = _vscprintf(formatStr, ap);
+        size_t len = _vscprintf(formatStr, args);
         std::vector<char> buf(len + 1, '\0');
-        buf.resize(_vsnprintf(buf.data(), len, formatStr, ap) + 1);
+        buf.resize(_vsnprintf(buf.data(), len, formatStr, args) + 1);
 #else
         va_list ap2;
-        va_copy(ap2, ap);
+        va_copy(ap2, args);
         size_t len = vsnprintf(nullptr, 0, formatStr, ap2);
         std::vector<char> buf(len + 1, '\0');
-        buf.resize(vsnprintf(buf.data(), len + 1, formatStr, ap) + 1);
+        buf.resize(vsnprintf(buf.data(), len + 1, formatStr, args) + 1);
+        va_end(ap2);
 #endif
-        va_end(ap);
         Aws::OStringStream ss;
         ss << &buf.at(0);
         LogStream(logLevel, tag, ss);

@@ -39,9 +39,9 @@ public:
         }
 #if SRT_VERSION_VALUE >= SRT_MAKE_VERSION_VALUE(1,4,3)
         if (option_.Has("mininputbw")) {
-            int64_t mininputbw = option_.Get<int32_t>("mininputbw", 0);
+            int64_t mininputbw = option_.Get<int64_t>("mininputbw", 0);
             if (srt_setsockflag(sfd_, SRTO_MININPUTBW, &mininputbw, sizeof(mininputbw)) == SRT_ERROR) {
-                errmsgs_ << boost::format("failed srt_setsockflag(SRTO_MININPUTBW) [ %d ]; %s") % mininputbw % srt_getlasterror_str();
+                errmsgs_ << boost::format("failed srt_setsockflag(SRTO_MININPUTBW) [ %lld ]; %s") % mininputbw % srt_getlasterror_str();
                 return false;
             }
         }

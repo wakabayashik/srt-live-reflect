@@ -1,0 +1,29 @@
+{
+  "name": "srt-live-reflect",
+  "version-string": "0.4.0",
+  "dependencies": [
+    "libsrt",
+    "curl",
+    "openssl",
+    {
+      "name": "aws-sdk-cpp",
+      "default-features": false,
+      "features": [
+        "s3"
+      ]
+    },
+    "boost-algorithm",
+    "boost-format",
+    "boost-tokenizer",
+    "boost-lexical-cast",
+    "boost-thread",
+    "boost-range",
+    "boost-json",
+    "boost-tuple",
+    "boost-date-time",
+    "boost-xpressive",
+    "boost-filesystem",
+    "boost-endian",
+    "boost-log"
+  ]
+}
