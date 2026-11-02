@@ -26,6 +26,7 @@ jobs:
       uses: lukka/run-vcpkg@v11
       with:
         vcpkgJsonGlob: 'vcpkg.json'
+        runVcpkgInstall: true
         appendedArgs: '--triplet x64-linux'
     - name: make
       run: make USE_AWSSDK=1
