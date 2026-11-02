@@ -196,6 +196,7 @@ void    CurlStrList::AppendV(const char* fmt, va_list ap) {
     size_t len = vsnprintf(nullptr, 0, fmt, ap2);
     std::vector<char> buf(len + 1, '\0');
     buf.resize(vsnprintf(buf.data(), len + 1, fmt, ap) + 1);
+    va_end(ap2);
 #endif
     slist_ = curl_slist_append(slist_, buf.data());
 }
