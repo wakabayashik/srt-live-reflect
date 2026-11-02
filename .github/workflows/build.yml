@@ -26,24 +26,6 @@ jobs:
       uses: johnwason/vcpkg-action@v4
       id: vcpkg
       with:
-        pkgs: >
-          openssl
-          libsrt
-          curl
-          boost-algorithm
-          boost-format
-          boost-tokenizer
-          boost-lexical-cast
-          boost-thread
-          boost-range
-          boost-json
-          boost-tuple
-          boost-date-time
-          boost-xpressive
-          boost-filesystem
-          boost-endian
-          boost-log
-          aws-sdk-cpp[s3]
         triplet: x64-linux
         token: ${{ github.token }}
     - name: sed Makefile
