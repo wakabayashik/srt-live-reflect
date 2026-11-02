@@ -23,7 +23,7 @@ jobs:
     - name: install make
       run: sudo apt install make -y
     - name: vcpkg build
-      uses: johnwason/vcpkg-action@v4
+      uses: microsoft/run-vcpkg@v1
       id: vcpkg
       with:
         triplet: x64-linux
