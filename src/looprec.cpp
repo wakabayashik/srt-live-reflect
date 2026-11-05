@@ -316,13 +316,18 @@ class SegmentReader
     std::istream* dat_stream_;
     std::istream* idx_stream_;
     bool burst_;
+    bool burst_logged_;
+    int64_t max_send_delay_;
+    boost::chrono::steady_clock::time_point suppress_log_send_delay_;
 public:
     using ptr_t = boost::scoped_ptr<SegmentReader>;
     SegmentReader(const std::string& log_prefix, Segment::ptr_t segment, const Speed& speed, const boost::chrono::milliseconds& idx_interval
         , std::function<std::streamoff(std::streamoff)> idx_endian, const boost::chrono::steady_clock::time_point& base_time)
         : log_prefix_(log_prefix), segment_(segment), speed_(speed), dat_file_(), idx_file_()
         , idx_interval_(idx_interval), idx_endian_(idx_endian), base_time_(base_time), pos_(0), next_(0), read_(0), pos_ns_(0), reached_idx_end_(false)
-        , s3get_dat_(), s3get_idx_(), dat_stream_(nullptr), idx_stream_(nullptr), burst_(false) {
+        , s3get_dat_(), s3get_idx_(), dat_stream_(nullptr), idx_stream_(nullptr), burst_(false), burst_logged_(false)
+        , max_send_delay_(0), suppress_log_send_delay_(base_time)
+    {
     }
     virtual ~SegmentReader() {
         Destroy();
@@ -434,16 +439,30 @@ public:
         if (!reached_idx_end_ && next_ > pos_) {
             int64_t reference_ns = (pos_ns_ + 1000ll * 1000 * idx_interval_.count() * read_ / (next_ - pos_)) / speed_;
             if (reference_ns > elapsed_ns) {
-                if (reference_ns - elapsed_ns > 1000ll * 1000 * 100) {
+                if (reference_ns - elapsed_ns > 1000ll * 1000 * 300) {
                     Logger::Warning(boost::format("%s : too long wait : %lld[ms]") % log_prefix_ % ((reference_ns - elapsed_ns) / 1000 / 1000));
                 }
                 boost::this_thread::sleep_for(boost::chrono::nanoseconds(reference_ns - elapsed_ns));
-                burst_ = false;
+                if (burst_) {
+                    burst_ = false;
+                    if (burst_logged_) {
+                        Logger::Trace(boost::format("%s : burst send done") % log_prefix_);
+                        burst_logged_ = false;
+                    }
+                }
             } else if (elapsed_ns - reference_ns > 1000ll * 1000 * 300) {
                 if (burst_) {
-                    Logger::Trace(boost::format("%s : burst send : %lld[ms]") % log_prefix_ % ((elapsed_ns - reference_ns) / 1000 / 1000));
+                    if (!burst_logged_) {
+                        Logger::Trace(boost::format("%s : burst send : %lld[ms]") % log_prefix_ % ((elapsed_ns - reference_ns) / 1000 / 1000));
+                        burst_logged_ = true;
+                    }
                 } else {
-                    Logger::Warning(boost::format("%s : late to send : %lld[ms]") % log_prefix_ % ((elapsed_ns - reference_ns) / 1000 / 1000));
+                    max_send_delay_ = std::max<int64_t>(max_send_delay_, elapsed_ns - reference_ns);
+                    if (tick > suppress_log_send_delay_) {
+                        Logger::Warning(boost::format("%s : send delay : %lld[ms]") % log_prefix_ % (max_send_delay_ / 1000 / 1000));
+                        max_send_delay_ = 0;
+                        suppress_log_send_delay_ = tick + boost::chrono::seconds(3);
+                    }
                 }
             }
         }
