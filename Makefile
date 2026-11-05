@@ -32,7 +32,6 @@ LIBS     := $(LIBS) -lboost_json
 LIBS     := $(LIBS) -lboost_filesystem
 LIBS     := $(LIBS) -lboost_log
 LIBS     := $(LIBS) -lboost_log_setup
-LIBS     := $(LIBS) -lboost_chrono
 ifdef USE_AWSSDK
 LIBS     := $(LIBS) -laws-cpp-sdk-s3
 LIBS     := $(LIBS) -laws-cpp-sdk-core

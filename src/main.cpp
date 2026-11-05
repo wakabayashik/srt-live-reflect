@@ -492,7 +492,7 @@ std::condition_variable App::cond_;
 bool App::notified_ = false;
 
 #define MAKE_VERSION(MAJOR, MINOR, PATCH) #MAJOR "." #MINOR "." #PATCH
-#define VERSION MAKE_VERSION(0, 3, 1)
+#define VERSION MAKE_VERSION(0, 4, 0)
 
 //----------------------------------------------------------------------------
 /// @fn main
