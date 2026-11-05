@@ -218,15 +218,16 @@ public:
     }
     virtual bool Write(const boost::chrono::steady_clock::time_point& tick, const Event::buf_t& buf) {
         if (!dat_file_.is_open()) return false;
-        if (buf.empty()) return true;
-        try {
-            dat_file_.write(&buf.at(0), buf.size());
-        } catch (std::ios_base::failure& ex) {
-            if (ex.what() != last_err_) {
-                last_err_ = ex.what();
-                Logger::Warning(boost::format("%s : failed to write segment data [%s] : %s") % log_prefix_ % segment_->DatPath().filename().string() % last_err_);
+        if (!buf.empty()) {
+            try {
+                dat_file_.write(&buf.at(0), buf.size());
+            } catch (std::ios_base::failure& ex) {
+                if (ex.what() != last_err_) {
+                    last_err_ = ex.what();
+                    Logger::Warning(boost::format("%s : failed to write segment data [%s] : %s") % log_prefix_ % segment_->DatPath().filename().string() % last_err_);
+                }
+                return false;
             }
-            return false;
         }
         bool flush = false;
         while (tick >= idx_time_) {
@@ -430,7 +431,7 @@ public:
         if (buf.empty()) {
             return false;
         }
-        if (next_ > pos_) {
+        if (!reached_idx_end_ && next_ > pos_) {
             int64_t reference_ns = (pos_ns_ + 1000ll * 1000 * idx_interval_.count() * read_ / (next_ - pos_)) / speed_;
             if (reference_ns > elapsed_ns) {
                 if (reference_ns - elapsed_ns > 1000ll * 1000 * 100) {
@@ -620,11 +621,13 @@ class LoopRec::Impl
     //----------------------------------------------------------------------------
     class CloseWriterTask : public Queue::Task {
         LoopRec::Impl* pimpl_;
+        boost::chrono::steady_clock::time_point tick_;
     public:
-        CloseWriterTask(LoopRec::Impl* pimpl) : pimpl_(pimpl) {
+        CloseWriterTask(LoopRec::Impl* pimpl, const boost::chrono::steady_clock::time_point& tick)
+            : pimpl_(pimpl), tick_(tick) {
         }
         virtual void Run() override {
-            pimpl_->CloseWriter();
+            pimpl_->CloseWriter(tick_);
         }
     };
     //----------------------------------------------------------------------------
@@ -647,7 +650,8 @@ class LoopRec::Impl
         LoopRec::Impl* pimpl_;
         boost::posix_time::ptime utc_;
     public:
-        RemoveExpiredSegmentsTask(LoopRec::Impl* pimpl, boost::posix_time::ptime utc) : pimpl_(pimpl), utc_(utc) {
+        RemoveExpiredSegmentsTask(LoopRec::Impl* pimpl, boost::posix_time::ptime utc)
+            : pimpl_(pimpl), utc_(utc) {
         }
         virtual void Run() override {
             pimpl_->RemoveExpiredSegments(utc_);
@@ -660,7 +664,8 @@ class LoopRec::Impl
         LoopRec::Impl* pimpl_;
         boost::shared_ptr<SenderRunner> sender_runner_;
     public:
-        RemoveSenderRunnerTask(LoopRec::Impl* pimpl, boost::shared_ptr<SenderRunner> sender_runner) : pimpl_(pimpl), sender_runner_(sender_runner) {
+        RemoveSenderRunnerTask(LoopRec::Impl* pimpl, boost::shared_ptr<SenderRunner> sender_runner)
+            : pimpl_(pimpl), sender_runner_(sender_runner) {
         }
         virtual void Run() override {
             if (!sender_runner_) return;
@@ -844,7 +849,8 @@ public:
                 return Write(buf, tick);
             };
             OnDisconnected = [this](const ReceiveOption& option) {
-                return CloseWriter();
+                boost::chrono::steady_clock::time_point tick = boost::chrono::steady_clock::now();
+                return CloseWriter(tick);
             };
         } else {
             // write data via the queue
@@ -859,12 +865,13 @@ public:
                 if (first && first->Tick() + boost::chrono::milliseconds(queue_limit_) < tick) {
                     Logger::Warning(boost::format("%s : queue overflowed : %lld[ms]") % log_prefix_ % ((tick - first->Tick()).count() / 1000 / 1000));
                     queue_.Clear();
-                    queue_.Push(Queue::task_t(new CloseWriterTask(this)));
+                    queue_.Push(Queue::task_t(new CloseWriterTask(this, tick)));
                 }
                 return queue_.Push(Queue::task_t(new WriteTask(this, buf, tick)));
             };
             OnDisconnected = [this](const ReceiveOption& option) {
-                return queue_.Push(Queue::task_t(new CloseWriterTask(this)));
+                boost::chrono::steady_clock::time_point tick = boost::chrono::steady_clock::now();
+                return queue_.Push(Queue::task_t(new CloseWriterTask(this, tick)));
             };
             queue_.Initialize();
         }
@@ -906,13 +913,7 @@ protected:
     virtual bool Write(const Event::buf_t& buf, const boost::chrono::steady_clock::time_point& tick) {
         std::string suffix = "Z"; // UTC
         if (writer_ && tick >= segment_time_) {
-            SegmentWriter::ptr_t writer;
-            {
-                boost::mutex::scoped_lock lock(mutex_);
-                writer_.swap(writer);
-            }
-            writer->Close();
-            if (!s3folder_.empty()) queue2_.Push(Queue::task_t(new SegmentUploadTask(writer->GetSegment())));
+            CloseWriter(tick);
             suffix += CONTINUOUS; // '=' means continuous data from previous segment
         }
         if (!writer_) {
@@ -937,16 +938,16 @@ protected:
         }
         return true;
     }
-    virtual bool CloseWriter() {
+    virtual bool CloseWriter(const boost::chrono::steady_clock::time_point& tick) {
         SegmentWriter::ptr_t writer;
-        {
-            boost::mutex::scoped_lock lock(mutex_);
-            writer_.swap(writer);
-        }
-        if (writer) {
-            writer->Close();
-            if (!s3folder_.empty()) queue2_.Push(Queue::task_t(new SegmentUploadTask(writer->GetSegment())));
-        }
+        boost::mutex::scoped_lock lock(mutex_);
+        writer_.swap(writer);
+        lock.unlock();
+        if (!writer) return true;
+        buf_t zero;
+        writer->Write(tick, zero); // write last index
+        writer->Close();
+        if (!s3folder_.empty()) queue2_.Push(Queue::task_t(new SegmentUploadTask(writer->GetSegment())));
         return true;
     }
     virtual void RemoveExpiredSegments(const boost::posix_time::ptime& utc) {
@@ -1067,15 +1068,18 @@ protected:
             while (sender->IsConnected()) {
                 boost::mutex::scoped_lock lock(mutex_);
                 bool latest_segment = writer_ && writer_->GetSegment() == reader->GetSegment();
+                bool latest_segment2 = writer_ && writer_->GetSegment()->DatPath() == reader->GetSegment()->DatPath();
+                assert(latest_segment == latest_segment2);
                 lock.unlock();
                 buf.resize(bufsiz);
-                if (reader->Read(tick, buf, latest_segment)) {
-                    read = true;
-                    break;
+                read = reader->Read(tick, buf, latest_segment);
+                if (read || !latest_segment || speed.IsFast()) {
+                    break; // read or reached end of segment
                 }
-                if (!latest_segment || speed.IsFast()) break;
+                // incase of latest segment, continue reading
                 assert(!reader->GetSegment()->S3Pushed());
                 boost::this_thread::sleep_for(boost::chrono::milliseconds(1));
+                base_time += boost::chrono::nanoseconds(100);
                 continue;
             }
             if (!read) {
