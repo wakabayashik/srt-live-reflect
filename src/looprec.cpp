@@ -182,15 +182,15 @@ class SegmentWriter
     const Segment::ptr_t segment_;
     std::ofstream dat_file_;
     std::ofstream idx_file_;
-    const boost::chrono::milliseconds idx_interval_;
+    const std::chrono::milliseconds idx_interval_;
     const std::function<std::streamoff(std::streamoff)> idx_endian_;
-    boost::chrono::steady_clock::time_point idx_time_;
+    std::chrono::steady_clock::time_point idx_time_;
     std::streamoff pos_;
     std::string last_err_;
 public:
     using ptr_t = std::shared_ptr<SegmentWriter>;
-    SegmentWriter(const std::string& log_prefix, Segment::ptr_t segment, const boost::chrono::milliseconds& idx_interval
-        , std::function<std::streamoff(std::streamoff)> idx_endian, const boost::chrono::steady_clock::time_point& idx_time)
+    SegmentWriter(const std::string& log_prefix, Segment::ptr_t segment, const std::chrono::milliseconds& idx_interval
+        , std::function<std::streamoff(std::streamoff)> idx_endian, const std::chrono::steady_clock::time_point& idx_time)
         : log_prefix_(log_prefix), segment_(segment), dat_file_(), idx_file_()
         , idx_interval_(idx_interval), idx_endian_(idx_endian), idx_time_(idx_time), pos_(0), last_err_() {
     }
@@ -216,7 +216,7 @@ public:
     virtual void Destroy() {
         Close();
     }
-    virtual bool Write(const boost::chrono::steady_clock::time_point& tick, const Event::buf_t& buf) {
+    virtual bool Write(const std::chrono::steady_clock::time_point& tick, const Event::buf_t& buf) {
         if (!dat_file_.is_open()) return false;
         if (!buf.empty()) {
             try {
@@ -303,9 +303,9 @@ class SegmentReader
     const Speed speed_;
     std::ifstream dat_file_;
     std::ifstream idx_file_;
-    const boost::chrono::milliseconds idx_interval_;
+    const std::chrono::milliseconds idx_interval_;
     const std::function<std::streamoff(std::streamoff)> idx_endian_;
-    const boost::chrono::steady_clock::time_point base_time_;
+    const std::chrono::steady_clock::time_point base_time_;
     std::streamoff pos_;
     std::streamoff next_;
     int64_t read_;
@@ -318,11 +318,11 @@ class SegmentReader
     bool burst_;
     bool burst_logged_;
     int64_t max_send_delay_;
-    boost::chrono::steady_clock::time_point suppress_log_send_delay_;
+    std::chrono::steady_clock::time_point suppress_log_send_delay_;
 public:
     using ptr_t = std::unique_ptr<SegmentReader>;
-    SegmentReader(const std::string& log_prefix, Segment::ptr_t segment, const Speed& speed, const boost::chrono::milliseconds& idx_interval
-        , std::function<std::streamoff(std::streamoff)> idx_endian, const boost::chrono::steady_clock::time_point& base_time)
+    SegmentReader(const std::string& log_prefix, Segment::ptr_t segment, const Speed& speed, const std::chrono::milliseconds& idx_interval
+        , std::function<std::streamoff(std::streamoff)> idx_endian, const std::chrono::steady_clock::time_point& base_time)
         : log_prefix_(log_prefix), segment_(segment), speed_(speed), dat_file_(), idx_file_()
         , idx_interval_(idx_interval), idx_endian_(idx_endian), base_time_(base_time), pos_(0), next_(0), read_(0), pos_ns_(0), reached_idx_end_(false)
         , s3get_dat_(), s3get_idx_(), dat_stream_(nullptr), idx_stream_(nullptr), burst_(false), burst_logged_(false)
@@ -419,7 +419,7 @@ public:
             Logger::Debug(boost::format("%s : close segment [%s]") % log_prefix_ % filename);
         }
     }
-    virtual bool Read(const boost::chrono::steady_clock::time_point& tick, Event::buf_t& buf, bool latest_segment) {
+    virtual bool Read(const std::chrono::steady_clock::time_point& tick, Event::buf_t& buf, bool latest_segment) {
         if (!dat_stream_ || !idx_stream_) return false;
         int64_t elapsed_ns = (tick - base_time_).count();
         if (elapsed_ns < 0) {
@@ -427,9 +427,9 @@ public:
             boost::this_thread::sleep_for(boost::chrono::nanoseconds(-elapsed_ns));
             return true;
         }
-        boost::chrono::steady_clock::time_point s0 = boost::chrono::steady_clock::now();
+        std::chrono::steady_clock::time_point s0 = std::chrono::steady_clock::now();
         buf.resize(static_cast<size_t>(dat_stream_->read(&buf.at(0), buf.size()).gcount()));
-        int64_t e0 = (boost::chrono::steady_clock::now() - s0).count();
+        int64_t e0 = (std::chrono::steady_clock::now() - s0).count();
         if (e0 >= 1000ll * 1000 * 30) {
             Logger::Debug(boost::format("%s : it took %lf[ms] to read the data") % log_prefix_ % (static_cast<double>(e0) / 1000.0 / 1000.0));
         }
@@ -461,7 +461,7 @@ public:
                     if (tick > suppress_log_send_delay_) {
                         Logger::Warning(boost::format("%s : send delay : %lld[ms]") % log_prefix_ % (max_send_delay_ / 1000 / 1000));
                         max_send_delay_ = 0;
-                        suppress_log_send_delay_ = tick + boost::chrono::seconds(3);
+                        suppress_log_send_delay_ = tick + std::chrono::seconds(3);
                     }
                 }
             }
@@ -470,9 +470,9 @@ public:
         while (pos_ + read_ >= next_) {
             std::streamoff idx_pos = static_cast<std::streamoff>(idx_stream_->tellg());
             std::streamoff next = 0;
-            boost::chrono::steady_clock::time_point s1 = boost::chrono::steady_clock::now();
+            std::chrono::steady_clock::time_point s1 = std::chrono::steady_clock::now();
             std::streamsize idx_read = idx_stream_->read(reinterpret_cast<char*>(&next), sizeof(std::streamoff)).gcount();
-            int64_t e1 = (boost::chrono::steady_clock::now() - s1).count();
+            int64_t e1 = (std::chrono::steady_clock::now() - s1).count();
             if (e1 >= 1000ll * 1000 * 30) {
                 Logger::Debug(boost::format("%s : it took %lf[ms] to read the index") % log_prefix_ % (static_cast<double>(e1) / 1000.0 / 1000.0));
             }
@@ -497,7 +497,7 @@ public:
         }
         return true;
     }
-    const boost::chrono::steady_clock::time_point& BaseTime() const {
+    const std::chrono::steady_clock::time_point& BaseTime() const {
         return base_time_;
     }
     bool ReachedIdxEnd() const {
@@ -623,15 +623,15 @@ class LoopRec::Impl
     class WriteTask : public Queue::Task {
         LoopRec::Impl* pimpl_;
         Event::buf_t buf_;
-        boost::chrono::steady_clock::time_point tick_;
+        std::chrono::steady_clock::time_point tick_;
     public:
-        WriteTask(LoopRec::Impl* pimpl, const Event::buf_t& buf, const boost::chrono::steady_clock::time_point& tick)
+        WriteTask(LoopRec::Impl* pimpl, const Event::buf_t& buf, const std::chrono::steady_clock::time_point& tick)
             : pimpl_(pimpl), buf_(buf), tick_(tick) {
         }
         virtual void Run() override {
             pimpl_->Write(buf_, tick_);
         }
-        const boost::chrono::steady_clock::time_point& Tick() const {
+        const std::chrono::steady_clock::time_point& Tick() const {
             return tick_;
         }
     };
@@ -640,9 +640,9 @@ class LoopRec::Impl
     //----------------------------------------------------------------------------
     class CloseWriterTask : public Queue::Task {
         LoopRec::Impl* pimpl_;
-        boost::chrono::steady_clock::time_point tick_;
+        std::chrono::steady_clock::time_point tick_;
     public:
-        CloseWriterTask(LoopRec::Impl* pimpl, const boost::chrono::steady_clock::time_point& tick)
+        CloseWriterTask(LoopRec::Impl* pimpl, const std::chrono::steady_clock::time_point& tick)
             : pimpl_(pimpl), tick_(tick) {
         }
         virtual void Run() override {
@@ -688,6 +688,7 @@ class LoopRec::Impl
         }
         virtual void Run() override {
             if (!sender_runner_) return;
+            sender_runner_->Destroy();
             pimpl_->RemoveSender(sender_runner_);
         }
     };
@@ -755,12 +756,12 @@ class LoopRec::Impl
     size_t s3bufsiz_;
     std::string dat_ext_;
     std::string idx_ext_;
-    boost::chrono::seconds segment_duration_;
-    boost::chrono::seconds total_duration_;
-    boost::chrono::milliseconds idx_interval_;
+    std::chrono::seconds segment_duration_;
+    std::chrono::seconds total_duration_;
+    std::chrono::milliseconds idx_interval_;
     std::function<std::streamoff(std::streamoff)> idx_endian_;
     uint32_t prefetch_ms_;
-    boost::chrono::steady_clock::time_point segment_time_;
+    std::chrono::steady_clock::time_point segment_time_;
     mutable boost::mutex mutex_;
     SenderRunner::vector_t sender_runners_;
     int queue_limit_;
@@ -788,9 +789,9 @@ public:
             idx_ext_ = "." + boost::trim_left_copy_if(conf_["index_extension"].to<std::string>("idx"), boost::is_any_of("."));
             if (dat_ext_ == idx_ext_) idx_ext_ += "_idx";
             uint32_t segdur = std::max<uint32_t>(conf_["segment_duration"].to<uint32_t>(600), 10);
-            segment_duration_ = boost::chrono::seconds(segdur);
-            total_duration_ = boost::chrono::seconds(std::max<uint32_t>(conf_["total_duration"].to<uint32_t>(3600), segdur));
-            idx_interval_ = boost::chrono::milliseconds(std::max<uint32_t>(conf_["index_interval"].to<uint32_t>(100), 1));
+            segment_duration_ = std::chrono::seconds(segdur);
+            total_duration_ = std::chrono::seconds(std::max<uint32_t>(conf_["total_duration"].to<uint32_t>(3600), segdur));
+            idx_interval_ = std::chrono::milliseconds(std::max<uint32_t>(conf_["index_interval"].to<uint32_t>(100), 1));
             std::string idx_endian = conf_["index_endian"].to<std::string>("");
             if (boost::iequals(idx_endian, "big")) {
                 idx_endian_ = boost::endian::big_to_native<std::streamoff>;
@@ -866,24 +867,24 @@ public:
         if (queue_limit_ == 0) {
             // write data without queue
             OnReceive = [this](const ReceiveOption& option, const Event::buf_t& buf, bool discrete) {
-                boost::chrono::steady_clock::time_point tick = boost::chrono::steady_clock::now();
+                std::chrono::steady_clock::time_point tick = std::chrono::steady_clock::now();
                 return Write(buf, tick);
             };
             OnDisconnected = [this](const ReceiveOption& option) {
-                boost::chrono::steady_clock::time_point tick = boost::chrono::steady_clock::now();
+                std::chrono::steady_clock::time_point tick = std::chrono::steady_clock::now();
                 return CloseWriter(tick);
             };
         } else {
             // write data via the queue
             OnReceive = [this](const ReceiveOption& option, const Event::buf_t& buf, bool discrete) {
-                boost::chrono::steady_clock::time_point tick = boost::chrono::steady_clock::now();
+                std::chrono::steady_clock::time_point tick = std::chrono::steady_clock::now();
                 if (queue_limit_ <= 0) {
                     // unlimited queuing
                     return queue_.Push(Queue::task_t(new WriteTask(this, buf, tick)));
                 }
                 // time limited queuing in milliseconds
                 std::shared_ptr<const WriteTask> first = queue_.GetFirstOf<WriteTask>();
-                if (first && first->Tick() + boost::chrono::milliseconds(queue_limit_) < tick) {
+                if (first && first->Tick() + std::chrono::milliseconds(queue_limit_) < tick) {
                     Logger::Warning(boost::format("%s : queue overflowed : %lld[ms]") % log_prefix_ % ((tick - first->Tick()).count() / 1000 / 1000));
                     queue_.Clear();
                     queue_.Push(Queue::task_t(new CloseWriterTask(this, tick)));
@@ -891,7 +892,7 @@ public:
                 return queue_.Push(Queue::task_t(new WriteTask(this, buf, tick)));
             };
             OnDisconnected = [this](const ReceiveOption& option) {
-                boost::chrono::steady_clock::time_point tick = boost::chrono::steady_clock::now();
+                std::chrono::steady_clock::time_point tick = std::chrono::steady_clock::now();
                 return queue_.Push(Queue::task_t(new CloseWriterTask(this, tick)));
             };
             queue_.Initialize();
@@ -931,7 +932,7 @@ public:
     std::function<bool(const ReceiveOption& option)> OnDisconnected;
 protected:
     using time_segment_t = std::pair<boost::posix_time::ptime, Segment::ptr_t>;
-    virtual bool Write(const Event::buf_t& buf, const boost::chrono::steady_clock::time_point& tick) {
+    virtual bool Write(const Event::buf_t& buf, const std::chrono::steady_clock::time_point& tick) {
         std::string suffix = "Z"; // UTC
         if (writer_ && tick >= segment_time_) {
             CloseWriter(tick);
@@ -959,7 +960,7 @@ protected:
         }
         return true;
     }
-    virtual bool CloseWriter(const boost::chrono::steady_clock::time_point& tick) {
+    virtual bool CloseWriter(const std::chrono::steady_clock::time_point& tick) {
         SegmentWriter::ptr_t writer;
         boost::mutex::scoped_lock lock(mutex_);
         writer_.swap(writer);
@@ -1021,9 +1022,9 @@ protected:
         time_segment_t next_segment;
         boost::mutex prefetch_mutex;
         boost::thread prefetch_thread;
-        boost::chrono::steady_clock::time_point base_time = boost::chrono::steady_clock::now();
+        std::chrono::steady_clock::time_point base_time = std::chrono::steady_clock::now();
         while (sender->IsConnected()) {
-            boost::chrono::steady_clock::time_point tick = boost::chrono::steady_clock::now();
+            std::chrono::steady_clock::time_point tick = std::chrono::steady_clock::now();
             if (!reader) {
                 boost::posix_time::ptime at = startedAt + boost::posix_time::microseconds((tick - base_time).count() * speed / 1000); // nanosec to microsec
                 if (!CheckPlaybackPosition(at, speed, log_prefix)) {
@@ -1053,17 +1054,17 @@ protected:
                         continue;
                     }
                     Logger::Debug(boost::format("%s : skip : %lld[ms]") % log_prefix % (gap_ns / 1000 / 1000));
-                    base_time -= boost::chrono::nanoseconds(gap_ns / speed);
+                    base_time -= std::chrono::nanoseconds(gap_ns / speed);
                     continue;
                 }
                 int64_t offset_ns = (at - segment.first).total_nanoseconds();
-                if (boost::chrono::nanoseconds(offset_ns) < segment_duration_) {
-                    boost::chrono::steady_clock::time_point baseTime = tick - boost::chrono::nanoseconds(offset_ns / speed);
+                if (std::chrono::nanoseconds(offset_ns) < segment_duration_) {
+                    std::chrono::steady_clock::time_point baseTime = tick - std::chrono::nanoseconds(offset_ns / speed);
                     bool burst = false;
                     if (burst_ms > 0) {
                         // slide the base time to make a burst start
-                        base_time -= boost::chrono::milliseconds(burst_ms);
-                        baseTime -= boost::chrono::milliseconds(burst_ms);
+                        base_time -= std::chrono::milliseconds(burst_ms);
+                        baseTime -= std::chrono::milliseconds(burst_ms);
                         burst_ms = 0;
                         burst = true;
                     }
@@ -1100,7 +1101,7 @@ protected:
                 // incase of latest segment, continue reading
                 assert(!reader->GetSegment()->S3Pushed());
                 boost::this_thread::sleep_for(boost::chrono::milliseconds(1));
-                base_time += boost::chrono::nanoseconds(100);
+                base_time += std::chrono::nanoseconds(100);
                 continue;
             }
             if (!read) {
@@ -1108,7 +1109,7 @@ protected:
                 if (!CheckPlaybackPosition(at, speed, log_prefix)) {
                     break;
                 }
-                boost::chrono::steady_clock::time_point baseTime = reader->BaseTime() + boost::chrono::nanoseconds(segment_duration_.count() * 1000ll * 1000 * 1000 / speed);
+                std::chrono::steady_clock::time_point baseTime = reader->BaseTime() + std::chrono::nanoseconds(segment_duration_.count() * 1000ll * 1000 * 1000 / speed);
                 if (prefetch_ms_ > 0 && next_segment.second && next_segment.second->Continuous()) {
                     boost::unique_lock<boost::mutex> lk(prefetch_mutex);
                     bool burst = reader->IsBurst();
@@ -1147,7 +1148,7 @@ protected:
                 if (10 < remain_ms && remain_ms <= prefetch_ms_ * speed) {
                     next_segment = GetSegment(segment.first, true); // prefetch next segment
                     if (next_segment.second && next_segment.second->Continuous()) {
-                        boost::chrono::steady_clock::time_point baseTime = reader->BaseTime() + boost::chrono::nanoseconds(segment_duration_.count() * 1000ll * 1000 * 1000 / speed);
+                        std::chrono::steady_clock::time_point baseTime = reader->BaseTime() + std::chrono::nanoseconds(segment_duration_.count() * 1000ll * 1000 * 1000 / speed);
                         if (prefetch_thread.joinable()) {
                             prefetch_thread.join();
                         }
