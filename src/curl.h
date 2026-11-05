@@ -5,8 +5,8 @@
 //----------------------------------------------------------------------------
 class CurlGlobal
 {
-    typedef boost::mutex mutex_t;
-    typedef boost::mutex::scoped_lock lock_t;
+    using mutex_t = boost::mutex;
+    using lock_t = boost::mutex::scoped_lock;
     static mutex_t mutex_;
     static std::string cainfo_;
     static std::string ua_;
@@ -25,7 +25,7 @@ public:
 //----------------------------------------------------------------------------
 class Curl
 {
-    boost::shared_ptr<CURL> curl_;
+    std::shared_ptr<CURL> curl_;
     int keepalive_;
     int keepidle_;
     int keepintvl_;
@@ -45,11 +45,13 @@ protected:
 //----------------------------------------------------------------------------
 /// @class CurlStrList
 //----------------------------------------------------------------------------
-class CurlStrList : private boost::noncopyable
+class CurlStrList
 {
     curl_slist* slist_;
 public:
     CurlStrList() : slist_(NULL) {}
+    CurlStrList(const CurlStrList&) = delete;
+    CurlStrList& operator=(const CurlStrList&) = delete;
     ~CurlStrList() { if (slist_) curl_slist_free_all(slist_); }
     void Append(const char* fmt, ...);
     void AppendV(const char* fmt, va_list ap);

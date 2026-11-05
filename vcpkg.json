@@ -19,9 +19,7 @@
     "boost-thread",
     "boost-range",
     "boost-json",
-    "boost-tuple",
     "boost-date-time",
-    "boost-xpressive",
     "boost-filesystem",
     "boost-endian",
     "boost-log"

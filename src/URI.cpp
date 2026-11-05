@@ -495,8 +495,8 @@ std::string URIOption::operator()(char anp, char equ, bool encode, const char* s
 //
 //----------------------------------------------------------------------------
 URIOption& URIOption::Parse(const std::string& optstr, const std::string& anp, const std::string& equ, bool decode) {
-    typedef boost::char_separator<char> sep_t;
-    typedef boost::tokenizer<sep_t, std::string::const_iterator, std::string> tokenizer_t;
+    using sep_t = boost::char_separator<char>;
+    using tokenizer_t = boost::tokenizer<sep_t, std::string::const_iterator, std::string>;
     if (!optstr.empty()) {
         sep_t sep(anp.c_str());
         tokenizer_t token(optstr, sep);

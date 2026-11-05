@@ -6,7 +6,7 @@
 //----------------------------------------------------------------------------
 class Messages
 {
-    typedef std::list<std::string> msgs_t;
+    using msgs_t = std::list<std::string>;
     size_t keep_;
     msgs_t msgs_;
 public:

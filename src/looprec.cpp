@@ -44,7 +44,7 @@ class Segment
     boost::filesystem::path s3key_idx_;
     mutable boost::mutex mutex_;
 public:
-    using ptr_t = boost::shared_ptr<Segment>;
+    using ptr_t = std::shared_ptr<Segment>;
     using map_t = std::map<boost::posix_time::ptime, ptr_t>;
     Segment(const std::string& log_prefix, const boost::filesystem::path& path, const std::string& idx_ext
         , const std::string& s3bucket, const std::string& s3folder, const boost::filesystem::path& s3key = "")
@@ -155,7 +155,7 @@ public:
             if (s3key_idx_.empty()) s3key_idx_ = s3folder_ + "/" + idx_path_.filename().string();
         }
         try {
-            boost::shared_ptr<AWS::S3Client> s3client(new AWS::S3Client);
+            std::shared_ptr<AWS::S3Client> s3client(new AWS::S3Client);
             AWS::S3Put put_idx = s3client->PutAsync(s3bucket_, s3key_idx_.string(), idx_path_.string());
             AWS::S3Put put_dat = s3client->PutAsync(s3bucket_, s3key_dat_.string(), dat_path_.string());
             bool idx_done = put_idx.Wait();
@@ -188,7 +188,7 @@ class SegmentWriter
     std::streamoff pos_;
     std::string last_err_;
 public:
-    using ptr_t = boost::shared_ptr<SegmentWriter>;
+    using ptr_t = std::shared_ptr<SegmentWriter>;
     SegmentWriter(const std::string& log_prefix, Segment::ptr_t segment, const boost::chrono::milliseconds& idx_interval
         , std::function<std::streamoff(std::streamoff)> idx_endian, const boost::chrono::steady_clock::time_point& idx_time)
         : log_prefix_(log_prefix), segment_(segment), dat_file_(), idx_file_()
@@ -320,7 +320,7 @@ class SegmentReader
     int64_t max_send_delay_;
     boost::chrono::steady_clock::time_point suppress_log_send_delay_;
 public:
-    using ptr_t = boost::scoped_ptr<SegmentReader>;
+    using ptr_t = std::unique_ptr<SegmentReader>;
     SegmentReader(const std::string& log_prefix, Segment::ptr_t segment, const Speed& speed, const boost::chrono::milliseconds& idx_interval
         , std::function<std::streamoff(std::streamoff)> idx_endian, const boost::chrono::steady_clock::time_point& base_time)
         : log_prefix_(log_prefix), segment_(segment), speed_(speed), dat_file_(), idx_file_()
@@ -536,7 +536,7 @@ class LoopRec::Impl
             virtual ~Task() {}
             virtual void Run() = 0;
         };
-        using task_t = boost::shared_ptr<Task>;
+        using task_t = std::shared_ptr<Task>;
         using queue_t = std::deque<task_t>;
     private:
         std::string log_prefix_;
@@ -578,14 +578,14 @@ class LoopRec::Impl
             boost::mutex::scoped_lock lock(mutex_);
             queue_.clear();
         }
-        template<typename Type> boost::shared_ptr<const Type> GetFirstOf() const {
+        template<typename Type> std::shared_ptr<const Type> GetFirstOf() const {
             boost::mutex::scoped_lock lock(mutex_);
             for (queue_t::const_iterator it = queue_.begin(); it != queue_.end(); ++it) {
                 task_t ptr = *it;
                 if (!ptr || typeid(*ptr) != typeid(Type)) continue;
-                return boost::dynamic_pointer_cast<const Type>(ptr);
+                return std::dynamic_pointer_cast<const Type>(ptr);
             }
-            return boost::shared_ptr<const Type>();
+            return std::shared_ptr<const Type>();
         }
     protected:
         virtual task_t Pop() {
@@ -681,9 +681,9 @@ class LoopRec::Impl
     //----------------------------------------------------------------------------
     class RemoveSenderRunnerTask : public Queue::Task {
         LoopRec::Impl* pimpl_;
-        boost::shared_ptr<SenderRunner> sender_runner_;
+        std::shared_ptr<SenderRunner> sender_runner_;
     public:
-        RemoveSenderRunnerTask(LoopRec::Impl* pimpl, boost::shared_ptr<SenderRunner> sender_runner)
+        RemoveSenderRunnerTask(LoopRec::Impl* pimpl, std::shared_ptr<SenderRunner> sender_runner)
             : pimpl_(pimpl), sender_runner_(sender_runner) {
         }
         virtual void Run() override {
@@ -694,20 +694,22 @@ class LoopRec::Impl
     //----------------------------------------------------------------------------
     /// @class LoopRec::Impl::SenderRunner
     //----------------------------------------------------------------------------
-    class SenderRunner : public boost::enable_shared_from_this<SenderRunner>, private boost::noncopyable {
+    class SenderRunner : public std::enable_shared_from_this<SenderRunner> {
         LoopRec::Impl* pimpl_;
         Sender::ptr_t sender_;
         StreamOption option_;
         boost::thread thread_;
         std::atomic<bool> destroyed_;
-        using weak_t = boost::weak_ptr<SenderRunner>;
+        using weak_t = std::weak_ptr<SenderRunner>;
     public:
-        using ptr_t = boost::shared_ptr<SenderRunner>;
+        using ptr_t = std::shared_ptr<SenderRunner>;
         using vector_t = std::vector<ptr_t>;
         SenderRunner(LoopRec::Impl* pimpl, int sfd, const SendOption& sendOption, const StreamOption& streamOption)
             : pimpl_(pimpl), sender_(Sender::Create(sfd, sendOption)), option_(streamOption), thread_(), destroyed_(false) {
             option_.Synonym("speed", "x");
         }
+        SenderRunner(const SenderRunner&) = delete;
+        SenderRunner& operator=(const SenderRunner&) = delete;
         virtual ~SenderRunner() {
             Destroy();
         }
@@ -880,7 +882,7 @@ public:
                     return queue_.Push(Queue::task_t(new WriteTask(this, buf, tick)));
                 }
                 // time limited queuing in milliseconds
-                boost::shared_ptr<const WriteTask> first = queue_.GetFirstOf<WriteTask>();
+                std::shared_ptr<const WriteTask> first = queue_.GetFirstOf<WriteTask>();
                 if (first && first->Tick() + boost::chrono::milliseconds(queue_limit_) < tick) {
                     Logger::Warning(boost::format("%s : queue overflowed : %lld[ms]") % log_prefix_ % ((tick - first->Tick()).count() / 1000 / 1000));
                     queue_.Clear();

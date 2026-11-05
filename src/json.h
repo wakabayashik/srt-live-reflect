@@ -3,7 +3,7 @@
 class Json : public boost::json::value
 {
     struct Path { std::string name; size_t idx; };
-    typedef std::vector<Path> path_t;
+    using path_t = std::vector<Path>;
 public:
     class Node {
         path_t path_;
@@ -28,7 +28,7 @@ public:
         template <typename Type> Type to(const Type& defVal = Type()) const;
     };
 public:
-    typedef std::vector<std::string> keys_t;
+    using keys_t = std::vector<std::string>;
     Json(const boost::json::value& value = boost::json::value()) : boost::json::value(value) {}
     Json(const Node& node) : boost::json::value(node.value()) {}
     Json& operator=(const boost::json::value& value) { *static_cast<boost::json::value*>(this) = value; return *this; }

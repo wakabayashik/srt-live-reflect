@@ -6,15 +6,17 @@
 //----------------------------------------------------------------------------
 /// @class CReceiver
 //----------------------------------------------------------------------------
-class Receiver : public boost::enable_shared_from_this<Receiver>, private boost::noncopyable
+class Receiver : public std::enable_shared_from_this<Receiver>
 {
     class Impl;
-    boost::scoped_ptr<Impl> pimpl_;
+    std::unique_ptr<Impl> pimpl_;
     Receiver(int sfd, const ReceiveOption& receiveOption);
 public:
-    typedef boost::shared_ptr<Receiver> ptr_t;
-    typedef std::map<std::string, ptr_t> map_t;
+    using ptr_t = std::shared_ptr<Receiver>;
+    using map_t = std::map<std::string, ptr_t>;
     static ptr_t Create(int sfd, const ReceiveOption& receiveOption);
+    Receiver(const Receiver&) = delete;
+    Receiver& operator=(const Receiver&) = delete;
     virtual ~Receiver();
     virtual bool Initialize();
     virtual void Destroy();

@@ -95,12 +95,12 @@ bool AWS::Test() {
 //----------------------------------------------------------------------------
 /// @class S3Async
 //----------------------------------------------------------------------------
-class S3Async : private boost::noncopyable {
+class S3Async {
 protected:
-    typedef boost::shared_ptr<Aws::S3::S3Client> client_t;
-    typedef boost::mutex mutex_t;
-    typedef boost::unique_lock<boost::mutex> lock_t;
-    typedef boost::condition_variable cond_t;
+    using client_t = std::shared_ptr<Aws::S3::S3Client>;
+    using mutex_t = boost::mutex;
+    using lock_t = boost::unique_lock<boost::mutex>;
+    using cond_t = boost::condition_variable;
     enum State { Failed = -1, Ready, Running, Done };
     client_t client_;
     Aws::String bucketName_;
@@ -114,6 +114,8 @@ protected:
         : client_(client), bucketName_(bucketName), keyName_(keyName), done_(done), fail_(fail), state_(Ready), mutex_(), cond_() {
     }
 public:
+    S3Async(const S3Async&) = delete;
+    S3Async& operator=(const S3Async&) = delete;
     virtual ~S3Async() {
     }
     virtual bool IsRunning() const {
@@ -255,7 +257,7 @@ public:
 //----------------------------------------------------------------------------
 class AWS::S3Client::Impl {
     Aws::String region_;
-    boost::shared_ptr<Aws::S3::S3Client> client_;
+    std::shared_ptr<Aws::S3::S3Client> client_;
 public:
     Impl(const Aws::Client::ClientConfiguration& clientConfig)
         : region_(clientConfig.region), client_(new Aws::S3::S3Client(clientConfig)) {
@@ -464,7 +466,7 @@ public:
 //----------------------------------------------------------------------------
 class AWS::Config {
     Aws::SDKOptions options_;
-    boost::scoped_ptr<Aws::Client::ClientConfiguration> clientConfig_;
+    std::unique_ptr<Aws::Client::ClientConfiguration> clientConfig_;
 public:
     Config() : options_(), clientConfig_() {
     }

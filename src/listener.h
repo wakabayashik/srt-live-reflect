@@ -6,14 +6,16 @@
 //----------------------------------------------------------------------------
 /// @class Listener
 //----------------------------------------------------------------------------
-class Listener : public boost::enable_shared_from_this<Listener>, private boost::noncopyable
+class Listener : public std::enable_shared_from_this<Listener>
 {
     class Impl;
-    boost::scoped_ptr<Impl> pimpl_;
+    std::unique_ptr<Impl> pimpl_;
     Listener(const ListenOption& listenOption);
 public:
-    typedef boost::shared_ptr<Listener> ptr_t;
+    using ptr_t = std::shared_ptr<Listener>;
     static ptr_t Create(const ListenOption& listenOption);
+    Listener(const Listener&) = delete;
+    Listener& operator=(const Listener&) = delete;
     virtual ~Listener(void);
     virtual bool Initialize();
     virtual void Destroy();

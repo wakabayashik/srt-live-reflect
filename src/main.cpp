@@ -15,7 +15,7 @@
 //----------------------------------------------------------------------------
 /// @class ReflectSender
 //----------------------------------------------------------------------------
-class ReflectSender : public Event, private boost::noncopyable {
+class ReflectSender : public Event {
     Sender::ptr_t sender_;
     std::string app_;
     std::string name_;
@@ -30,6 +30,8 @@ public:
     static Event::ptr_t Create(int sfd, const SendOption& option) {
         return Event::ptr_t(new ReflectSender(sfd, option));
     }
+    ReflectSender(const ReflectSender&) = delete;
+    ReflectSender& operator=(const ReflectSender&) = delete;
     virtual ~ReflectSender() {
         sender_.reset();
     }
@@ -47,11 +49,11 @@ protected:
 //----------------------------------------------------------------------------
 /// @class Reflect
 //----------------------------------------------------------------------------
-class Reflect : public Event, public boost::enable_shared_from_this<Reflect>, private boost::noncopyable
+class Reflect : public Event, public std::enable_shared_from_this<Reflect>
 {
     class Cache {
-        typedef boost::tuple<std::chrono::steady_clock::time_point, CURLcode, Json> data_t;
-        typedef std::map<std::string, data_t> map_t;
+        using data_t = std::tuple<std::chrono::steady_clock::time_point, CURLcode, Json>;
+        using map_t = std::map<std::string, data_t>;
         map_t map_;
     public:
         Cache() : map_() {}
@@ -59,13 +61,13 @@ class Reflect : public Event, public boost::enable_shared_from_this<Reflect>, pr
             boost::mutex::scoped_lock lock(mutex);
             map_t::const_iterator it = map_.find(key);
             if (it == map_.end()) return CURL_LAST;
-            if (std::chrono::steady_clock::now() > it->second.get<0>()) return CURL_LAST;
-            body = it->second.get<2>();
-            return it->second.get<1>();
+            if (std::chrono::steady_clock::now() > std::get<0>(it->second)) return CURL_LAST;
+            body = std::get<2>(it->second);
+            return std::get<1>(it->second);
         }
         void set(boost::mutex& mutex, const std::string& key, CURLcode code, const Json& body, int32_t age) {
             boost::mutex::scoped_lock lock(mutex);
-            map_[key] = boost::make_tuple(std::chrono::steady_clock::now() + std::chrono::seconds(age), code, body);
+            map_[key] = std::make_tuple(std::chrono::steady_clock::now() + std::chrono::seconds(age), code, body);
         }
     };
     const Json conf_;
@@ -79,14 +81,16 @@ class Reflect : public Event, public boost::enable_shared_from_this<Reflect>, pr
 protected:
     Reflect(const Json& conf) : Event(), conf_(conf), cache_(), listener_(), receivers_(), loopRecs_(), mutex_(), stats_(0), stats_time_() {
     }
+    Reflect(const Reflect&) = delete;
+    Reflect& operator=(const Reflect&) = delete;
     Receiver::ptr_t FindReceiver(const std::string& name) const {
         boost::mutex::scoped_lock lock(mutex_);
         const Receiver::map_t::const_iterator it = receivers_.find(name);
         return it == receivers_.end() ? Receiver::ptr_t() : it->second;
     }
 public:
-    typedef boost::shared_ptr<Reflect> ptr_t;
-    typedef std::vector<ptr_t> vector_t;
+    using ptr_t = std::shared_ptr<Reflect>;
+    using vector_t = std::vector<ptr_t>;
     static ptr_t Create(const Json& conf) {
         return ptr_t(new Reflect(conf));
     }
@@ -122,7 +126,7 @@ public:
         return conf_["app"].to<std::string>("live");
     }
 protected:
-    typedef std::pair<bool, Json> res_t;
+    using res_t = std::pair<bool, Json>;
     virtual bool PatternMatch(std::string pattern, const std::string& str) const {
         try {
             static const std::string escape = "\\+.?^$-|/{}()[]";
@@ -132,9 +136,9 @@ protected:
             }
             boost::algorithm::replace_all(pattern, "*", ".*");
             boost::algorithm::replace_all(pattern, "%", ".");
-            boost::xpressive::sregex regex = boost::xpressive::sregex::compile("^" + pattern + "$");
-            return boost::xpressive::regex_match(str, regex);
-        } catch (boost::xpressive::regex_error&) {
+            std::regex regex("^" + pattern + "$");
+            return std::regex_match(str, regex);
+        } catch (std::regex_error&) {
             return false;
         }
     }

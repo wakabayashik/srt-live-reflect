@@ -4,15 +4,15 @@
 
 class AWS {
     class Config;
-    typedef boost::scoped_ptr<Config> pconf_t;
+    using pconf_t = std::unique_ptr<Config>;
     static pconf_t pconf_;
 public:
-    typedef std::function<void()> done_t;
-    typedef std::function<void(const std::string& name, const std::string& message)> fail_t;
+    using done_t = std::function<void()>;
+    using fail_t = std::function<void(const std::string& name, const std::string& message)>;
     class S3Get {
         friend class AWS;
         class Impl;
-        typedef boost::shared_ptr<Impl> pimpl_t;
+        using pimpl_t = std::shared_ptr<Impl>;
         pimpl_t pimpl_;
     public:
         S3Get(pimpl_t pimpl = pimpl_t()) : pimpl_(pimpl) {}
@@ -25,7 +25,7 @@ public:
     class S3Put {
         friend class AWS;
         class Impl;
-        typedef boost::shared_ptr<Impl> pimpl_t;
+        using pimpl_t = std::shared_ptr<Impl>;
         pimpl_t pimpl_;
     public:
         S3Put(pimpl_t pimpl = pimpl_t()) : pimpl_(pimpl) {}
@@ -36,7 +36,7 @@ public:
     };
     class S3Client {
         class Impl;
-        typedef boost::shared_ptr<Impl> pimpl_t;
+        using pimpl_t = std::shared_ptr<Impl>;
         pimpl_t pimpl_;
     public:
         S3Client(pimpl_t pimpl = pimpl_t()) : pimpl_(pimpl) {}

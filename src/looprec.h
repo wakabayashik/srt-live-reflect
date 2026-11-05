@@ -4,14 +4,16 @@
 //----------------------------------------------------------------------------
 /// @class LoopRec
 //----------------------------------------------------------------------------
-class LoopRec : public Event, public boost::enable_shared_from_this<LoopRec>, private boost::noncopyable {
+class LoopRec : public Event, public std::enable_shared_from_this<LoopRec> {
     class Impl;
-    boost::scoped_ptr<Impl> pimpl_;
+    std::unique_ptr<Impl> pimpl_;
     LoopRec(const Json& conf, const std::string& app, const std::string& name);
 public:
-    typedef boost::shared_ptr<LoopRec> ptr_t;
-    typedef std::map<std::string, ptr_t> map_t;
+    using ptr_t = std::shared_ptr<LoopRec>;
+    using map_t = std::map<std::string, ptr_t>;
     static map_t Create(const Json::Node& loopRecs, const std::string& app);
+    LoopRec(const LoopRec&) = delete;
+    LoopRec& operator=(const LoopRec&) = delete;
     virtual ~LoopRec();
     virtual bool Initialize();
     virtual void Destroy();

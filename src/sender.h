@@ -6,14 +6,16 @@
 //----------------------------------------------------------------------------
 /// @class Sender
 //----------------------------------------------------------------------------
-class Sender : public boost::enable_shared_from_this<Sender>, private boost::noncopyable
+class Sender : public std::enable_shared_from_this<Sender>
 {
     class Impl;
-    boost::scoped_ptr<Impl> pimpl_;
+    std::unique_ptr<Impl> pimpl_;
     Sender(int sfd, const SendOption& option);
 public:
-    typedef boost::shared_ptr<Sender> ptr_t;
+    using ptr_t = std::shared_ptr<Sender>;
     static ptr_t Create(int sfd, const SendOption& option);
+    Sender(const Sender&) = delete;
+    Sender& operator=(const Sender&) = delete;
     virtual ~Sender();
     virtual bool Initialize();
     virtual void Destroy();

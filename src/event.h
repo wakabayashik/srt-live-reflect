@@ -12,12 +12,12 @@ class Event
     volatile bool listenerFlag_;
     volatile bool receiverFlag_;
 public:
-    typedef boost::shared_ptr<Event> ptr_t;
-    typedef boost::weak_ptr<Event> wptr_t;
-    typedef std::vector<ptr_t> vector_t;
-    typedef std::pair<int, wptr_t> pair_t;
-    typedef std::list<pair_t> list_t;
-    typedef std::vector<char> buf_t;
+    using ptr_t = std::shared_ptr<Event>;
+    using wptr_t = std::weak_ptr<Event>;
+    using vector_t = std::vector<ptr_t> ;
+    using pair_t = std::pair<int, wptr_t>;
+    using list_t = std::list<pair_t>;
+    using buf_t = std::vector<char>;
 
     // for internal use
     static void AddEvent(boost::mutex& mutex, list_t& list, wptr_t wptr, int priority = 0) { AddEvent(mutex, list, std::make_pair(priority, wptr)); }
