@@ -24,6 +24,7 @@
 #include <regex>
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 
 #define BOOST_FILESYSTEM_VERSION 4
 
