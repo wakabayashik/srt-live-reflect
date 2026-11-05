@@ -988,7 +988,7 @@ protected:
     virtual void RemoveSender(SenderRunner::ptr_t sender_runner) {
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            boost::range::remove_erase(sender_runners_, sender_runner);
+            sender_runners_.erase(std::remove(sender_runners_.begin(), sender_runners_.end(), sender_runner), sender_runners_.end());
         }
         if (sender_runner) sender_runner->Destroy();
     }

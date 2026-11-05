@@ -31,7 +31,6 @@
 #include <boost/format.hpp>
 #include <boost/tokenizer.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/range/algorithm_ext/erase.hpp>
 #include <boost/json.hpp>
 #include <boost/date_time/c_local_time_adjustor.hpp>
 #include <boost/date_time/local_time/local_time.hpp>

@@ -337,7 +337,7 @@ protected:
                 if (!ev->OnReceive(option_, buf, diff > 1)) {
                     // remove if owned event listener returns false
                     std::lock_guard<std::mutex> lk(mutex_);
-                    boost::range::remove_erase(own_events_, ev);
+                    own_events_.erase(std::remove(own_events_.begin(), own_events_.end(), ev), own_events_.end());
                 }
             }
         }
