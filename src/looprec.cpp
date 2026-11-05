@@ -42,7 +42,7 @@ class Segment
     std::string s3folder_;
     boost::filesystem::path s3key_dat_;
     boost::filesystem::path s3key_idx_;
-    mutable boost::mutex mutex_;
+    mutable std::mutex mutex_;
 public:
     using ptr_t = std::shared_ptr<Segment>;
     using map_t = std::map<boost::posix_time::ptime, ptr_t>;
@@ -75,7 +75,7 @@ public:
     }
     virtual void SetLocalPath(const boost::filesystem::path& path, const std::string& idx_ext) {
         if (path.empty()) return;
-        boost::mutex::scoped_lock lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         if (dat_path_.empty()) dat_path_ = path;
         if (idx_path_.empty()) (idx_path_ = path).replace_extension(idx_ext);
     }
@@ -87,7 +87,7 @@ public:
             boost::system::error_code ec;
             if (boost::filesystem::remove(dat_path_, ec)) {
                 if (log) Logger::Info(boost::format("%s : remove segment [%s]") % log_prefix_ % dat_path_.filename().string());
-                boost::mutex::scoped_lock lock(mutex_);
+                std::lock_guard<std::mutex> lock(mutex_);
                 dat_path_.clear();
             } else {
                 Logger::Warning(boost::format("%s : failed to remove segment [%s] : %s") % log_prefix_ % dat_path_.filename().string() % ec.to_string());
@@ -97,7 +97,7 @@ public:
             boost::system::error_code ec;
             if (boost::filesystem::remove(idx_path_, ec)) {
                 if (log) Logger::Debug(boost::format("%s : remove segment index [%s]") % log_prefix_ % idx_path_.filename().string());
-                boost::mutex::scoped_lock lock(mutex_);
+                std::lock_guard<std::mutex> lock(mutex_);
                 idx_path_.clear();
             } else {
                 Logger::Warning(boost::format("%s : failed to remove segment index [%s] : %s") % log_prefix_ % idx_path_.filename().string() % ec.to_string());
@@ -109,32 +109,32 @@ public:
         if (!s3bucket_.empty() && !s3key_dat_.empty()) {
             if (s3client.Delete(s3bucket_, s3key_dat_.string())) {
                 if (log) Logger::Info(boost::format("%s : remove segment [%s]") % log_prefix_ % s3key_dat_.filename().string());
-                boost::mutex::scoped_lock lock(mutex_);
+                std::lock_guard<std::mutex> lock(mutex_);
                 s3key_dat_.clear();
             }
         }
         if (!s3bucket_.empty() && !s3key_idx_.empty()) {
             if (s3client.Delete(s3bucket_, s3key_idx_.string())) {
                 if (log) Logger::Debug(boost::format("%s : remove segment index [%s]") % log_prefix_ % s3key_idx_.filename().string());
-                boost::mutex::scoped_lock lock(mutex_);
+                std::lock_guard<std::mutex> lock(mutex_);
                 s3key_idx_.clear();
             }
         }
     }
     virtual boost::filesystem::path DatPath() const {
-        boost::mutex::scoped_lock lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         return dat_path_;
     }
     virtual boost::filesystem::path IdxPath() const {
-        boost::mutex::scoped_lock lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         return idx_path_;
     }
     virtual boost::filesystem::path S3KeyDat() const {
-        boost::mutex::scoped_lock lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         return s3key_dat_;
     }
     virtual boost::filesystem::path S3KeyIdx() const {
-        boost::mutex::scoped_lock lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         return s3key_idx_;
     }
     virtual bool Continuous() const {
@@ -150,7 +150,7 @@ public:
         if (s3bucket_.empty() || s3folder_.empty()) return;
         if (s3pushed_) return;
         {
-            boost::mutex::scoped_lock lock(mutex_);
+            std::lock_guard<std::mutex> lock(mutex_);
             if (s3key_dat_.empty()) s3key_dat_ = s3folder_ + "/" + dat_path_.filename().string();
             if (s3key_idx_.empty()) s3key_idx_ = s3folder_ + "/" + idx_path_.filename().string();
         }
@@ -424,7 +424,7 @@ public:
         int64_t elapsed_ns = (tick - base_time_).count();
         if (elapsed_ns < 0) {
             buf.resize(0);
-            boost::this_thread::sleep_for(boost::chrono::nanoseconds(-elapsed_ns));
+            std::this_thread::sleep_for(std::chrono::nanoseconds(-elapsed_ns));
             return true;
         }
         std::chrono::steady_clock::time_point s0 = std::chrono::steady_clock::now();
@@ -442,7 +442,7 @@ public:
                 if (reference_ns - elapsed_ns > 1000ll * 1000 * 300) {
                     Logger::Warning(boost::format("%s : too long wait : %lld[ms]") % log_prefix_ % ((reference_ns - elapsed_ns) / 1000 / 1000));
                 }
-                boost::this_thread::sleep_for(boost::chrono::nanoseconds(reference_ns - elapsed_ns));
+                std::this_thread::sleep_for(std::chrono::nanoseconds(reference_ns - elapsed_ns));
                 if (burst_) {
                     burst_ = false;
                     if (burst_logged_) {
@@ -542,9 +542,9 @@ class LoopRec::Impl
         std::string log_prefix_;
         std::atomic<bool> running_;
         queue_t queue_;
-        boost::thread thread_;
-        mutable boost::mutex mutex_;
-        boost::condition_variable cond_;
+        std::thread thread_;
+        mutable std::mutex mutex_;
+        std::condition_variable cond_;
     public:
         Queue(const std::string& log_prefix) : log_prefix_(log_prefix), running_(false), queue_(), thread_(), mutex_(), cond_() {
         }
@@ -553,33 +553,31 @@ class LoopRec::Impl
         }
         virtual bool Initialize() {
             running_ = true;
-            thread_ = boost::thread(&Queue::Thread, this);
+            thread_ = std::thread(&Queue::Thread, this);
             return true;
         }
         virtual void Destroy() {
             running_ = false;
-            if (!thread_.joinable()) return;
-            thread_.interrupt();
             cond_.notify_one();
-            thread_.join();
+            if (thread_.joinable()) thread_.join();
         }
         virtual bool Push(task_t task) {
             return PushIf(0, task);
         }
         virtual bool PushIf(size_t limit, task_t task) {
-            if (!running_ || !thread_.joinable()) return false;
-            boost::mutex::scoped_lock lock(mutex_);
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (!running_) return false;
             if (limit > 0 && queue_.size() >= limit) return false;
             queue_.push_back(task);
             cond_.notify_one();
             return true;
         }
         virtual void Clear() {
-            boost::mutex::scoped_lock lock(mutex_);
+            std::lock_guard<std::mutex> lock(mutex_);
             queue_.clear();
         }
         template<typename Type> std::shared_ptr<const Type> GetFirstOf() const {
-            boost::mutex::scoped_lock lock(mutex_);
+            std::lock_guard<std::mutex> lock(mutex_);
             for (queue_t::const_iterator it = queue_.begin(); it != queue_.end(); ++it) {
                 task_t ptr = *it;
                 if (!ptr || typeid(*ptr) != typeid(Type)) continue;
@@ -589,23 +587,25 @@ class LoopRec::Impl
         }
     protected:
         virtual task_t Pop() {
-            boost::mutex::scoped_lock lock(mutex_);
-            cond_.wait(lock, [this]() {
-                if (!queue_.empty()) return true;
-                boost::this_thread::interruption_point();
-                return false;
-            });
+            std::unique_lock<std::mutex> lock(mutex_);
+            cond_.wait(lock, [this]() { return !queue_.empty() || !running_; });
+            if (queue_.empty()) return nullptr;
             task_t task = queue_.front();
             queue_.pop_front();
             return task;
         }
         virtual void Thread() {
             std::string last_err;
-            while (running_) {
+            for (;;) {
                 std::string err;
                 try {
-                     Pop()->Run();
-                } catch (boost::thread_interrupted&) {
+                     task_t task = Pop();
+                     if (task) {
+                         task->Run();
+                     } else {
+                         std::lock_guard<std::mutex> lk(mutex_);
+                         if (queue_.empty() && !running_) break;
+                     }
                 } catch (std::exception& ex) {
                     err = ex.what();
                 } catch (...) {
@@ -688,7 +688,6 @@ class LoopRec::Impl
         }
         virtual void Run() override {
             if (!sender_runner_) return;
-            sender_runner_->Destroy();
             pimpl_->RemoveSender(sender_runner_);
         }
     };
@@ -699,7 +698,7 @@ class LoopRec::Impl
         LoopRec::Impl* pimpl_;
         Sender::ptr_t sender_;
         StreamOption option_;
-        boost::thread thread_;
+        std::thread thread_;
         std::atomic<bool> destroyed_;
         using weak_t = std::weak_ptr<SenderRunner>;
     public:
@@ -716,7 +715,7 @@ class LoopRec::Impl
         }
         virtual bool Initialize() {
             weak_t weak = shared_from_this();
-            thread_ = boost::thread(&SenderRunner::Thread, this, weak, sender_);
+            thread_ = std::thread(&SenderRunner::Thread, this, weak, sender_);
             return true;
         }
         virtual void Destroy() {
@@ -762,7 +761,7 @@ class LoopRec::Impl
     std::function<std::streamoff(std::streamoff)> idx_endian_;
     uint32_t prefetch_ms_;
     std::chrono::steady_clock::time_point segment_time_;
-    mutable boost::mutex mutex_;
+    mutable std::mutex mutex_;
     SenderRunner::vector_t sender_runners_;
     int queue_limit_;
     Queue queue_;
@@ -901,17 +900,16 @@ public:
     }
     virtual void Destroy() {
         queue_.Destroy();
+        queue2_.Destroy();
         SenderRunner::vector_t runners;
         {
-            boost::mutex::scoped_lock lock(mutex_);
+            std::lock_guard<std::mutex> lock(mutex_);
             runners.swap(sender_runners_);
         }
-        for (SenderRunner::ptr_t sender_runner : runners) {
+        for (SenderRunner::ptr_t sender_runner : runners)
             sender_runner->Destroy();
-        }
         runners.clear();
         writer_.reset();
-        queue2_.Destroy();
         segments_.clear();
     }
     virtual bool IsAcceptable(const StreamOption& streamOption) const {
@@ -923,9 +921,10 @@ public:
     }
     virtual void CreateSender(int sfd, const SendOption& sendOption, const StreamOption& streamOption) {
         SenderRunner::ptr_t sender_runner(new SenderRunner(this, sfd, sendOption, streamOption));
-        boost::mutex::scoped_lock lock(mutex_);
-        sender_runners_.push_back(sender_runner);
-        lock.unlock();
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            sender_runners_.push_back(sender_runner);
+        }
         sender_runner->Initialize();
     }
     std::function<bool(const ReceiveOption& option, const Event::buf_t& buf, bool discrete)> OnReceive;
@@ -944,7 +943,7 @@ protected:
             Segment::ptr_t segment(new Segment(log_prefix_, path, idx_ext_, s3bucket_, s3folder_));
             SegmentWriter::ptr_t writer(new SegmentWriter(log_prefix_, segment, idx_interval_, idx_endian_, tick));
             if (segment->Initialize() && writer->Initialize()) {
-                boost::mutex::scoped_lock lock(mutex_);
+                std::lock_guard<std::mutex> lock(mutex_);
                 segments_[utc] = segment;
                 writer_ = writer;
                 if (suffix.length() == 2) { // CONTINUOUS
@@ -962,9 +961,10 @@ protected:
     }
     virtual bool CloseWriter(const std::chrono::steady_clock::time_point& tick) {
         SegmentWriter::ptr_t writer;
-        boost::mutex::scoped_lock lock(mutex_);
-        writer_.swap(writer);
-        lock.unlock();
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            writer_.swap(writer);
+        }
         if (!writer) return true;
         buf_t zero;
         writer->Write(tick, zero); // write last index
@@ -974,7 +974,7 @@ protected:
     }
     virtual void RemoveExpiredSegments(const boost::posix_time::ptime& utc) {
         boost::posix_time::seconds dur((total_duration_ + segment_duration_).count());
-        boost::mutex::scoped_lock lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         Segment::map_t::iterator it = segments_.begin();
         for (; it != segments_.end(); ++it) {
             if (it->first + dur > utc) break;
@@ -986,11 +986,14 @@ protected:
         }
     }
     virtual void RemoveSender(SenderRunner::ptr_t sender_runner) {
-        boost::mutex::scoped_lock lock(mutex_);
-        boost::range::remove_erase(sender_runners_, sender_runner);
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            boost::range::remove_erase(sender_runners_, sender_runner);
+        }
+        if (sender_runner) sender_runner->Destroy();
     }
     virtual time_segment_t GetSegment(const boost::posix_time::ptime& utc, bool next = false) const {
-        boost::mutex::scoped_lock lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         if (segments_.empty()) {
             return std::make_pair(boost::posix_time::ptime(), Segment::ptr_t());
         }
@@ -1020,8 +1023,8 @@ protected:
         SegmentReader::ptr_t next_reader;
         time_segment_t segment;
         time_segment_t next_segment;
-        boost::mutex prefetch_mutex;
-        boost::thread prefetch_thread;
+        std::mutex prefetch_mutex;
+        std::thread prefetch_thread;
         std::chrono::steady_clock::time_point base_time = std::chrono::steady_clock::now();
         while (sender->IsConnected()) {
             std::chrono::steady_clock::time_point tick = std::chrono::steady_clock::now();
@@ -1039,7 +1042,7 @@ protected:
                     }
                     Logger::Trace(boost::format("%s : missing segment") % log_prefix);
                     segment.second.reset();
-                    boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
                     continue;
                 }
                 if (segment.first > at) {
@@ -1050,7 +1053,7 @@ protected:
                     if (gap == "wait") {
                         segment.second.reset();
                         Logger::Trace(boost::format("%s : waiting next segment : %lld[ms]") % log_prefix % (gap_ns / 1000 / 1000));
-                        boost::this_thread::sleep_for(boost::chrono::nanoseconds(std::min<int64_t>(gap_ns, 1000ll * 1000 * 100)));
+                        std::this_thread::sleep_for(std::chrono::nanoseconds(std::min<int64_t>(gap_ns, 1000ll * 1000 * 100)));
                         continue;
                     }
                     Logger::Debug(boost::format("%s : skip : %lld[ms]") % log_prefix % (gap_ns / 1000 / 1000));
@@ -1078,7 +1081,7 @@ protected:
                     }
                     if (gap == "wait") {
                         segment.second.reset();
-                        boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
                         continue;
                     }
                     segment = GetSegment(segment.first, true);
@@ -1088,10 +1091,8 @@ protected:
             }
             bool read = false;
             while (sender->IsConnected()) {
-                boost::mutex::scoped_lock lock(mutex_);
+                std::unique_lock<std::mutex> lock(mutex_);
                 bool latest_segment = writer_ && writer_->GetSegment() == reader->GetSegment();
-                bool latest_segment2 = writer_ && writer_->GetSegment()->DatPath() == reader->GetSegment()->DatPath();
-                assert(latest_segment == latest_segment2);
                 lock.unlock();
                 buf.resize(bufsiz);
                 read = reader->Read(tick, buf, latest_segment);
@@ -1100,7 +1101,7 @@ protected:
                 }
                 // incase of latest segment, continue reading
                 assert(!reader->GetSegment()->S3Pushed());
-                boost::this_thread::sleep_for(boost::chrono::milliseconds(1));
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 base_time += std::chrono::nanoseconds(100);
                 continue;
             }
@@ -1111,7 +1112,7 @@ protected:
                 }
                 std::chrono::steady_clock::time_point baseTime = reader->BaseTime() + std::chrono::nanoseconds(segment_duration_.count() * 1000ll * 1000 * 1000 / speed);
                 if (prefetch_ms_ > 0 && next_segment.second && next_segment.second->Continuous()) {
-                    boost::unique_lock<boost::mutex> lk(prefetch_mutex);
+                    std::lock_guard<std::mutex> lk(prefetch_mutex);
                     bool burst = reader->IsBurst();
                     reader.swap(next_reader);
                     next_reader.reset();
@@ -1152,8 +1153,8 @@ protected:
                         if (prefetch_thread.joinable()) {
                             prefetch_thread.join();
                         }
-                        prefetch_thread = boost::thread([&, baseTime]() {
-                            boost::unique_lock<boost::mutex> lk(prefetch_mutex);
+                        prefetch_thread = std::thread([&, baseTime]() {
+                            std::lock_guard<std::mutex> lk(prefetch_mutex);
                             if (!next_segment.second || !next_segment.second->Continuous()) return;
                             try {
                                 next_reader.reset(new SegmentReader(log_prefix, next_segment.second, speed, idx_interval_, idx_endian_, baseTime));

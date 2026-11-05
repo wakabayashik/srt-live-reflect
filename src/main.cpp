@@ -57,16 +57,16 @@ class Reflect : public Event, public std::enable_shared_from_this<Reflect>
         map_t map_;
     public:
         Cache() : map_() {}
-        CURLcode find(boost::mutex& mutex, const std::string& key, Json& body) const {
-            boost::mutex::scoped_lock lock(mutex);
+        CURLcode find(std::mutex& mutex, const std::string& key, Json& body) const {
+            std::lock_guard<std::mutex> lock(mutex);
             map_t::const_iterator it = map_.find(key);
             if (it == map_.end()) return CURL_LAST;
             if (std::chrono::steady_clock::now() > std::get<0>(it->second)) return CURL_LAST;
             body = std::get<2>(it->second);
             return std::get<1>(it->second);
         }
-        void set(boost::mutex& mutex, const std::string& key, CURLcode code, const Json& body, int32_t age) {
-            boost::mutex::scoped_lock lock(mutex);
+        void set(std::mutex& mutex, const std::string& key, CURLcode code, const Json& body, int32_t age) {
+            std::lock_guard<std::mutex> lock(mutex);
             map_[key] = std::make_tuple(std::chrono::steady_clock::now() + std::chrono::seconds(age), code, body);
         }
     };
@@ -75,7 +75,7 @@ class Reflect : public Event, public std::enable_shared_from_this<Reflect>
     Listener::ptr_t listener_;
     Receiver::map_t receivers_;
     LoopRec::map_t loopRecs_;
-    mutable boost::mutex mutex_;
+    mutable std::mutex mutex_;
     int32_t stats_;
     std::chrono::steady_clock::time_point stats_time_;
 protected:
@@ -84,7 +84,7 @@ protected:
     Reflect(const Reflect&) = delete;
     Reflect& operator=(const Reflect&) = delete;
     Receiver::ptr_t FindReceiver(const std::string& name) const {
-        boost::mutex::scoped_lock lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         const Receiver::map_t::const_iterator it = receivers_.find(name);
         return it == receivers_.end() ? Receiver::ptr_t() : it->second;
     }
@@ -118,8 +118,14 @@ public:
         return true;
     }
     virtual void Destroy() {
+        if (listener_)
+            listener_->Destroy();
         listener_.reset();
+        for (std::pair<std::string, Receiver::ptr_t> kv : receivers_)
+            kv.second->Destroy();
         receivers_.clear();
+        for (std::pair<std::string, LoopRec::ptr_t> kv : loopRecs_)
+            kv.second->Destroy();
         loopRecs_.clear();
     }
     virtual std::string app() const {
@@ -274,7 +280,7 @@ protected:
             receiver->AddEvent(shared_from_this(), 0);
             LoopRec::map_t::const_iterator loopRec = loopRecs_.find(name);
             if (loopRec != loopRecs_.end() && loopRec->second) receiver->AddEvent(loopRec->second, -1);
-            boost::mutex::scoped_lock lock(mutex_);
+            std::lock_guard<std::mutex> lock(mutex_);
             receivers_[name] = receiver;
             Logger::Info(boost::format("<%s> accept publish [ %s ] from %s") % app() % name % opt["peer"]);
             return true;
@@ -303,7 +309,7 @@ protected:
         }
     }
     virtual bool OnListenerFlag(const ListenOption& option) override {
-        boost::mutex::scoped_lock lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         for (Receiver::map_t::const_iterator it = receivers_.begin(); it != receivers_.end(); ++it) {
             Receiver::ptr_t receiver = it->second;
             if (!it->second) continue;
@@ -321,10 +327,10 @@ protected:
         std::string name = option.Get<std::string>("name");
         std::string peer = option.Get<std::string>("peer");
         Logger::Info(boost::format("<%s> disconnected [ %s ] from %s") % app() % name % peer);
-        boost::mutex::scoped_lock lock(mutex_);
-        Receiver::map_t::iterator it = receivers_.find(name);;
+        std::lock_guard<std::mutex> lock(mutex_);
+        Receiver::map_t::iterator it = receivers_.find(name);
         if (it != receivers_.end() && it->second) {
-            boost::thread([](Receiver::ptr_t receiver) { receiver.reset(); }, it->second);
+            std::thread([](Receiver::ptr_t receiver) { receiver.reset(); }, it->second).detach();
             it->second.reset();
         }
         return true;
@@ -336,8 +342,9 @@ protected:
 //----------------------------------------------------------------------------
 class App
 {
-    static boost::mutex mutex_;
-    static boost::condition_variable cond_;
+    static std::mutex mutex_;
+    static std::condition_variable cond_;
+    static bool notified_;
     std::string name_;
     std::string version_;
     Json conf_;
@@ -399,6 +406,8 @@ public:
         return true;
     }
     virtual void Destroy() {
+        for (Reflect::ptr_t reflect : reflects_)
+            reflect->Destroy();
         reflects_.clear();
         srt_cleanup();
         if (conf_["aws"]["enabled"].to<int>(0)) {
@@ -437,18 +446,19 @@ public:
 #endif
         std::signal(SIGINT, &App::signalHandler);
         std::signal(SIGTERM, &App::signalHandler);
-        boost::unique_lock<boost::mutex> lk(mutex_);
+        std::unique_lock<std::mutex> lk(mutex_);
 #if defined(_DEBUG) && defined(WIN32)
-        while (!cond_.timed_wait(lk, boost::posix_time::milliseconds(100)) && (!_kbhit() || _getche() != 'q'));
+        while ((cond_.wait_for(lk, std::chrono::milliseconds(100)) == std::cv_status::timeout) && (!_kbhit() || _getche() != 'q'));
 #else
-        cond_.wait(lk);
+        cond_.wait(lk, [&]{ return notified_; });
 #endif
         return 0;
     }
 protected:
     static void signalHandler(int signum) {
         Logger::Info(boost::format("signal : %d") % signum);
-        boost::unique_lock<boost::mutex> lk(mutex_);
+        std::unique_lock<std::mutex> lk(mutex_);
+        notified_ = true;
         cond_.notify_all();
     }
     static void logHandler(void* opaque, int level, const char* file, int line, const char* area, const char* message) {
@@ -477,8 +487,9 @@ protected:
     }
 };
 
-boost::mutex App::mutex_;
-boost::condition_variable App::cond_;
+std::mutex App::mutex_;
+std::condition_variable App::cond_;
+bool App::notified_ = false;
 
 #define MAKE_VERSION(MAJOR, MINOR, PATCH) #MAJOR "." #MINOR "." #PATCH
 #define VERSION MAKE_VERSION(0, 3, 1)

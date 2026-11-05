@@ -5,8 +5,8 @@
 //----------------------------------------------------------------------------
 class CurlGlobal
 {
-    using mutex_t = boost::mutex;
-    using lock_t = boost::mutex::scoped_lock;
+    using mutex_t = std::mutex;
+    using lock_t = std::lock_guard<std::mutex>;
     static mutex_t mutex_;
     static std::string cainfo_;
     static std::string ua_;

@@ -98,9 +98,9 @@ bool AWS::Test() {
 class S3Async {
 protected:
     using client_t = std::shared_ptr<Aws::S3::S3Client>;
-    using mutex_t = boost::mutex;
-    using lock_t = boost::unique_lock<boost::mutex>;
-    using cond_t = boost::condition_variable;
+    using mutex_t = std::mutex;
+    using lock_t = std::unique_lock<std::mutex>;
+    using cond_t = std::condition_variable;
     enum State { Failed = -1, Ready, Running, Done };
     client_t client_;
     Aws::String bucketName_;
@@ -137,16 +137,16 @@ protected:
     void OnFail(const std::string& name, const std::string& message) {
         state_ = Failed;
         cond_.notify_one();
-        if (!fail_) return;
         AWS::fail_t fail = fail_;
-        boost::thread([=]() { fail(name, message); });
+        if (!fail) return;
+        fail(name, message);
     }
     void OnDone() {
         state_ = Done;
         cond_.notify_one();
-        if (!done_) return;
         AWS::done_t done = done_;
-        boost::thread([=]() { done(); });
+        if (!done) return;
+        done();
     }
 };
 

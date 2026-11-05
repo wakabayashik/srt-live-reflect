@@ -20,9 +20,9 @@ public:
     using buf_t = std::vector<char>;
 
     // for internal use
-    static void AddEvent(boost::mutex& mutex, list_t& list, wptr_t wptr, int priority = 0) { AddEvent(mutex, list, std::make_pair(priority, wptr)); }
-    static void AddEvent(boost::mutex& mutex, list_t& list, pair_t pair);
-    static vector_t GetEvents(boost::mutex& mutex, list_t& list);
+    static void AddEvent(std::mutex& mutex, list_t& list, wptr_t wptr, int priority = 0) { AddEvent(mutex, list, std::make_pair(priority, wptr)); }
+    static void AddEvent(std::mutex& mutex, list_t& list, pair_t pair);
+    static vector_t GetEvents(std::mutex& mutex, list_t& list);
 
     Event() : listenerFlag_(false), receiverFlag_(false) {}
     virtual ~Event() {}

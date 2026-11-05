@@ -16,7 +16,6 @@
     "boost-format",
     "boost-tokenizer",
     "boost-lexical-cast",
-    "boost-thread",
     "boost-range",
     "boost-json",
     "boost-date-time",

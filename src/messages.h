@@ -40,11 +40,11 @@ public:
 //----------------------------------------------------------------------------
 class SafeMessages : public Messages
 {
-    mutable boost::mutex mutex_;
+    mutable std::mutex mutex_;
 public:
     SafeMessages(size_t keep = 5) : Messages(keep), mutex_() {}
-    virtual Messages& operator<<(const std::string& str) { boost::mutex::scoped_lock lk(mutex_); return Messages::operator<<(str); }
-    virtual Messages& operator<<(const boost::format& fmt) { boost::mutex::scoped_lock lk(mutex_); return Messages::operator<<(fmt.str()); }
-    virtual Messages& operator<<(Ctrl& ctrl) { boost::mutex::scoped_lock lk(mutex_); return Messages::operator<<(ctrl); }
-    virtual std::string operator()(const std::string& sep = "\n") const { boost::mutex::scoped_lock lk(mutex_); return Messages::operator()(sep); }
+    virtual Messages& operator<<(const std::string& str) { std::lock_guard<std::mutex> lk(mutex_); return Messages::operator<<(str); }
+    virtual Messages& operator<<(const boost::format& fmt) { std::lock_guard<std::mutex> lk(mutex_); return Messages::operator<<(fmt.str()); }
+    virtual Messages& operator<<(Ctrl& ctrl) { std::lock_guard<std::mutex> lk(mutex_); return Messages::operator<<(ctrl); }
+    virtual std::string operator()(const std::string& sep = "\n") const { std::lock_guard<std::mutex> lk(mutex_); return Messages::operator()(sep); }
 };

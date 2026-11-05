@@ -10,9 +10,9 @@ class Listener::Impl
     Listener* owner_;
     const ListenOption option_;
     std::vector<SRTSOCKET> sfds_;
-    int eid_;
-    boost::thread thread_;
-    boost::mutex mutex_;
+    std::atomic<int> eid_;
+    std::thread thread_;
+    std::mutex mutex_;
     Event::list_t events_;
     Event::vector_t own_events_;
     SafeMessages errmsgs_;
@@ -44,7 +44,7 @@ public:
         }
         int errcode = getaddrinfo(host.empty() ? nullptr : host.c_str(), port.c_str(), &hints, &res0);
         if (errcode) {
-            boost::mutex::scoped_lock lk(mutex_);
+            std::lock_guard<std::mutex> lk(mutex_);
             errmsgs_ << boost::format("failed getaddrinfo(): %s") % gai_strerror(errcode);
             return false;
         }
@@ -99,7 +99,7 @@ public:
             errmsgs_ << "there is no interface to start listening.";
             return false;
         }
-        thread_ = boost::thread(&Impl::Thread, this);
+        thread_ = std::thread(&Impl::Thread, this);
         return true;
     }
     virtual void Destroy() {
@@ -125,7 +125,7 @@ public:
         if (!own) return;
         Event::ptr_t p = ev.lock();
         if (!p) return;
-        boost::mutex::scoped_lock lk(mutex_);
+        std::lock_guard<std::mutex> lk(mutex_);
         own_events_.push_back(p);
     }
     virtual Event::vector_t GetEvents() {
@@ -379,8 +379,6 @@ protected:
     virtual void Thread() {
         try {
             Poll();
-        } catch (boost::thread_interrupted&) {
-            errmsgs_ << "the thread has been interrupted.";
         } catch (std::exception& ev) {
             errmsgs_ << boost::format("an unexpected exception occurred: %s") % ev.what();
         }
@@ -389,7 +387,7 @@ protected:
     virtual void Poll() {
         int msTimeout = option_.Get<int>("epolltimeo", 100);
         std::vector<SRTSOCKET> srtrfds(sfds_.size(), SRT_INVALID_SOCK);
-        for (; eid_ >= 0; CheckFlag(), boost::this_thread::interruption_point()) {
+        for (; eid_ >= 0; CheckFlag()) {
             int srtrfdslen = static_cast<int>(srtrfds.size());
             int n = srt_epoll_wait(eid_, &srtrfds.at(0), &srtrfdslen, 0, 0, msTimeout, 0, 0, 0, 0);
             for (int i = 0; i < n; ++i) {
@@ -439,7 +437,7 @@ protected:
                 return;
             } else {
                 // remove if owned event listener returns false
-                boost::mutex::scoped_lock lk(mutex_);
+                std::lock_guard<std::mutex> lk(mutex_);
                 boost::range::remove_erase(own_events_, ev);
             }
         }

@@ -10,7 +10,7 @@
 //----------------------------------------------------------------------------
 //
 //----------------------------------------------------------------------------
-boost::mutex CurlGlobal::mutex_;
+std::mutex CurlGlobal::mutex_;
 std::string CurlGlobal::cainfo_;
 std::string CurlGlobal::ua_;
 long CurlGlobal::timeout_ = 30;

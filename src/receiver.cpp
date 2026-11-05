@@ -10,9 +10,9 @@ class Receiver::Impl
     Receiver* owner_;
     SRTSOCKET sfd_;
     const ReceiveOption option_;
-    int eid_;
-    boost::thread thread_;
-    boost::mutex mutex_;
+    std::atomic<int> eid_;
+    std::thread thread_;
+    std::mutex mutex_;
     Event::list_t events_;
     Event::vector_t own_events_;
     SafeMessages errmsgs_;
@@ -101,7 +101,7 @@ public:
             return false;
         }
         //TRACE(_T("MESRT::Receiver::Impl::Initialize [ %s ] streamName=%s\n"), A4T(option_.Get<std::string>("peername", "")).c_str(), A4T(option_.Get<std::string>("streamname", "")).c_str());
-        thread_ = boost::thread(&Impl::Thread, this);
+        thread_ = std::thread(&Impl::Thread, this);
         return true;
     }
     virtual void Destroy() {
@@ -111,7 +111,6 @@ public:
             srt_epoll_release(eid);
         }
         if (thread_.joinable()) {
-            thread_.interrupt();
             thread_.join();
             //TRACE(_T("MESRT::Receiver::Impl::Destroy [ %s ] streamName=%s\n"), A4T(option_.Get<std::string>("peername", "")).c_str(), A4T(option_.Get<std::string>("streamname", "")).c_str());
         }
@@ -126,7 +125,7 @@ public:
         if (!own) return;
         Event::ptr_t p = ev.lock();
         if (!p) return;
-        boost::mutex::scoped_lock lk(mutex_);
+        std::lock_guard<std::mutex> lk(mutex_);
         own_events_.push_back(p);
     }
     virtual Event::vector_t GetEvents() {
@@ -255,8 +254,6 @@ protected:
     virtual void Thread() {
         try {
             Poll();
-        } catch (boost::thread_interrupted&) {
-            errmsgs_ << "the thread has been interrupted.";
         } catch (std::exception& ev) {
             errmsgs_ << boost::format("an unexpected exception occurred: %s") % ev.what();
         }
@@ -275,7 +272,7 @@ protected:
         std::vector<char> buf;
         int msTimeout = option_.Get<int>("epolltimeo", 100);
         std::vector<SRTSOCKET> srtrfds(1, SRT_INVALID_SOCK);
-        for (; eid_ >= 0; CheckFlag(), boost::this_thread::interruption_point()) {
+        for (; eid_ >= 0; CheckFlag()) {
             int srtrfdslen = static_cast<int>(srtrfds.size());
             int n = srt_epoll_wait(eid_, &srtrfds.at(0), &srtrfdslen, 0, 0, msTimeout, 0, 0, 0, 0);
             for (int i = 0; i < n; ++i) {
@@ -318,7 +315,7 @@ protected:
     }
     virtual bool Receive(std::vector<char>& buf, SRT_MSGCTRL& msgctrl) {
         Event::vector_t events = Event::GetEvents(mutex_, events_);
-        for (int count = 10; count >= 0 && eid_ >= 0; --count, boost::this_thread::interruption_point()) {
+        for (int count = 10; count >= 0 && eid_ >= 0; --count) {
             buf.resize(1500, 0);
             int32_t lastMsgNo = msgctrl.msgno;
             int ret = srt_recvmsg2(sfd_, buf.data(), static_cast<int>(buf.size()), &msgctrl);
@@ -339,7 +336,7 @@ protected:
                 Event::ptr_t ev = *it;
                 if (!ev->OnReceive(option_, buf, diff > 1)) {
                     // remove if owned event listener returns false
-                    boost::mutex::scoped_lock lk(mutex_);
+                    std::lock_guard<std::mutex> lk(mutex_);
                     boost::range::remove_erase(own_events_, ev);
                 }
             }

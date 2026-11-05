@@ -4,8 +4,8 @@
 //----------------------------------------------------------------------------
 //
 //----------------------------------------------------------------------------
-void Event::AddEvent(boost::mutex& mutex, list_t& list, pair_t pair) {
-    boost::mutex::scoped_lock lk(mutex);
+void Event::AddEvent(std::mutex& mutex, list_t& list, pair_t pair) {
+    std::lock_guard<std::mutex> lk(mutex);
     list.insert(std::lower_bound(list.begin(), list.end(), pair, [](const pair_t& lhs, const pair_t& rhs) {
         return !(lhs.first - rhs.first < 0); // sort descending by priority
     }), pair);
@@ -14,8 +14,8 @@ void Event::AddEvent(boost::mutex& mutex, list_t& list, pair_t pair) {
 //----------------------------------------------------------------------------
 //
 //----------------------------------------------------------------------------
-Event::vector_t Event::GetEvents(boost::mutex& mutex, list_t& list) {
-    boost::mutex::scoped_lock lk(mutex);
+Event::vector_t Event::GetEvents(std::mutex& mutex, list_t& list) {
+    std::lock_guard<std::mutex> lk(mutex);
     vector_t vector;
     for (list_t::iterator it = list.begin(); it != list.end(); ) {
         ptr_t ptr = it->second.lock();

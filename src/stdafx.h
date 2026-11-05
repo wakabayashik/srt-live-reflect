@@ -22,6 +22,8 @@
 #include <memory>
 #include <tuple>
 #include <regex>
+#include <thread>
+#include <mutex>
 
 #define BOOST_FILESYSTEM_VERSION 4
 
@@ -29,7 +31,6 @@
 #include <boost/format.hpp>
 #include <boost/tokenizer.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/thread.hpp>
 #include <boost/range/algorithm_ext/erase.hpp>
 #include <boost/json.hpp>
 #include <boost/date_time/c_local_time_adjustor.hpp>
