@@ -34,3 +34,39 @@ public:
     static void Fatal(const std::string& msg) { fatal_(msg); }
     static void Fatal(const boost::format& fmt) { fatal_(fmt.str()); }
 };
+
+class AntiRepeatLogger
+{
+    const std::string prefix_;
+    std::string key_;
+    int level_;
+    int64_t repeat_;
+public:
+    AntiRepeatLogger(const std::string& prefix) : prefix_(prefix), key_(), level_(-1), repeat_(0) {}
+    void Clear() { Reset("", -1, 0); }
+    void Trace(const std::string& msg) { Trace("", msg); }
+    void Trace(const boost::format& fmt) { Trace("", fmt.str()); }
+    void Trace(const std::string& key, const std::string& msg);
+    void Trace(const std::string& key, const boost::format& fmt) { Trace(key, fmt.str()); }
+    void Debug(const std::string& msg) { Debug("", msg); }
+    void Debug(const boost::format& fmt) { Debug("", fmt.str()); }
+    void Debug(const std::string& key, const std::string& msg);
+    void Debug(const std::string& key, const boost::format& fmt) { Debug(key, fmt.str()); }
+    void Info(const std::string& msg) { Info("", msg); }
+    void Info(const boost::format& fmt) { Info("", fmt.str()); }
+    void Info(const std::string& key, const std::string& msg);
+    void Info(const std::string& key, const boost::format& fmt) { Info(key, fmt.str()); }
+    void Warning(const std::string& msg) { Warning("", msg); }
+    void Warning(const boost::format& fmt) { Warning("", fmt.str()); }
+    void Warning(const std::string& key, const std::string& msg);
+    void Warning(const std::string& key, const boost::format& fmt) { Warning(key, fmt.str()); }
+    void Error(const std::string& msg) { Error("", msg); }
+    void Error(const boost::format& fmt) { Error("", fmt.str()); }
+    void Error(const std::string& key, const std::string& msg);
+    void Error(const std::string& key, const boost::format& fmt) { Error(key, fmt.str()); }
+    void Fatal(const std::string& msg);
+    void Fatal(const boost::format& fmt) { Fatal(fmt.str()); }
+protected:
+    void Reset(const std::string& key, int level, int64_t repeat);
+};
+

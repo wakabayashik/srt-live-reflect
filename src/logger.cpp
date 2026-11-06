@@ -128,3 +128,68 @@ bool Logger::ErrorEnabled() {
 bool Logger::FatalEnabled() {
     return static_cast<int>(boost::log::trivial::fatal) >= level_;
 }
+
+void AntiRepeatLogger::Trace(const std::string& key, const std::string& msg) {
+    const std::string& k = key.empty() ? msg : key;
+    if (level_ == boost::log::trivial::trace && k == key_) {
+        ++repeat_;
+        return;
+    }
+    Reset(k, boost::log::trivial::trace, 1);
+    Logger::Trace(msg);
+}
+
+void AntiRepeatLogger::Debug(const std::string& key, const std::string& msg) {
+    const std::string& k = key.empty() ? msg : key;
+    if (level_ == boost::log::trivial::debug && k == key_) {
+        ++repeat_;
+        return;
+    }
+    Reset(k, boost::log::trivial::debug, 1);
+    Logger::Debug(msg);
+}
+
+void AntiRepeatLogger::Info(const std::string& key, const std::string& msg) {
+    const std::string& k = key.empty() ? msg : key;
+    if (level_ == boost::log::trivial::info && k == key_) {
+        ++repeat_;
+        return;
+    }
+    Reset(k, boost::log::trivial::info, 1);
+    Logger::Info(msg);
+}
+
+void AntiRepeatLogger::Warning(const std::string& key, const std::string& msg) {
+    const std::string& k = key.empty() ? msg : key;
+    if (level_ == boost::log::trivial::warning && k == key_) {
+        ++repeat_;
+        return;
+    }
+    Reset(k, boost::log::trivial::warning, 1);
+    Logger::Warning(msg);
+}
+
+void AntiRepeatLogger::Error(const std::string& key, const std::string& msg) {
+    const std::string& k = key.empty() ? msg : key;
+    if (level_ == boost::log::trivial::error && k == key_) {
+        ++repeat_;
+        return;
+    }
+    Reset(k, boost::log::trivial::error, 1);
+    Logger::Error(msg);
+}
+
+void AntiRepeatLogger::Fatal(const std::string& msg) {
+    Reset("", -1, 0);
+    Logger::Fatal(msg);
+}
+
+void AntiRepeatLogger::Reset(const std::string& key, int level, int64_t repeat)
+{
+    if (repeat_ > 1) {
+        Logger::Trace(boost::format("%s : message repeated %d times (%d suppressed) : %s") % prefix_ % repeat_ % (repeat_ - 1) % key_);
+    }
+    key_ = key;
+    level_ = level;
+    repeat_ = repeat;
+}

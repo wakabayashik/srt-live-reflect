@@ -332,36 +332,36 @@ public:
     virtual ~SegmentReader() {
         Destroy();
     }
-    virtual bool Initialize(int64_t offset_ms, const std::string& s3bucket, size_t s3bufsiz) {
+    virtual bool Initialize(int64_t offset_ms, const std::string& s3bucket, size_t s3bufsiz, AntiRepeatLogger& logger) {
         if (!segment_) {
             return false;
         }
         if (segment_->S3Pushed() && !s3bucket.empty()) {
             AWS::S3Client s3client;
             if (!s3client.Head(s3bucket, segment_->S3KeyIdx().string())) {
-                Logger::Warning(boost::format("%s : failed to open segment index [%s]") % log_prefix_ % segment_->S3KeyIdx().filename().string());
+                logger.Warning(boost::format("%s : failed to open segment index [%s]") % log_prefix_ % segment_->S3KeyIdx().filename().string());
                 return false;
             }
             if (!s3client.Head(s3bucket, segment_->S3KeyDat().string())) {
-                Logger::Warning(boost::format("%s : failed to open segment [%s]") % log_prefix_ % segment_->S3KeyDat().filename().string());
+                logger.Warning(boost::format("%s : failed to open segment [%s]") % log_prefix_ % segment_->S3KeyDat().filename().string());
                 return false;
             }
             int64_t offset = offset_ms / idx_interval_.count();
             s3get_idx_ = s3client.GetAsync(s3bucket, segment_->S3KeyIdx().string(), offset * sizeof(std::streamoff));
             if (s3get_idx_.GetStream().read(reinterpret_cast<char*>(&pos_), sizeof(std::streamoff)).gcount() < static_cast<std::streamsize>(sizeof(std::streamoff))) {
-                Logger::Trace(boost::format("%s : failed to read segment index (%s[ms]) [%s]") % log_prefix_ % offset_ms % segment_->S3KeyIdx().filename().string());
+                logger.Trace("failed to read segment index", boost::format("%s : failed to read segment index (%s[ms]) [%s]") % log_prefix_ % offset_ms % segment_->S3KeyIdx().filename().string());
                 reached_idx_end_ = true;
                 return false;
             }
             pos_ = idx_endian_(pos_);
             if (s3get_idx_.GetStream().read(reinterpret_cast<char*>(&next_), sizeof(std::streamoff)).gcount() < static_cast<std::streamsize>(sizeof(std::streamoff))) {
-                Logger::Trace(boost::format("%s : failed to read segment index (%s[ms] next) [%s]") % log_prefix_ % offset_ms % segment_->S3KeyIdx().filename().string());
+                logger.Trace("failed to read segment index (next)", boost::format("%s : failed to read segment index (%s[ms] next) [%s]") % log_prefix_ % offset_ms % segment_->S3KeyIdx().filename().string());
                 reached_idx_end_ = true;
                 return false;
             }
             next_ = idx_endian_(next_);
             s3get_dat_ = AWS::S3Client().GetAsync(s3bucket, segment_->S3KeyDat().string(), pos_, s3bufsiz); // another S3Client for segment data
-            Logger::Debug(boost::format("%s : open segment [%s]") % log_prefix_ % segment_->S3KeyDat().filename().string());
+            logger.Debug(boost::format("%s : open segment [%s]") % log_prefix_ % segment_->S3KeyDat().filename().string());
             read_ = 0;
             pos_ns_ = offset * 1000ll * 1000 * idx_interval_.count(); // millisec to nanosec
             dat_stream_ = &s3get_dat_.GetStream();
@@ -369,29 +369,29 @@ public:
         } else {
             idx_file_.open(segment_->IdxPath().string(), std::ios::in | std::ios::binary);
             if (!idx_file_.is_open()) {
-                Logger::Warning(boost::format("%s : failed to open segment index [%s]") % log_prefix_ % segment_->IdxPath().filename().string());
+                logger.Warning(boost::format("%s : failed to open segment index [%s]") % log_prefix_ % segment_->IdxPath().filename().string());
                 return false;
             }
             int64_t offset = offset_ms / idx_interval_.count();
             idx_file_.seekg(offset * sizeof(std::streamoff));
             if (idx_file_.read(reinterpret_cast<char*>(&pos_), sizeof(std::streamoff)).gcount() < static_cast<std::streamsize>(sizeof(std::streamoff))) {
-                Logger::Trace(boost::format("%s : failed to read segment index (%s[ms]) [%s]") % log_prefix_ % offset_ms % segment_->IdxPath().filename().string());
+                logger.Trace("failed to read segment index", boost::format("%s : failed to read segment index (%s[ms]) [%s]") % log_prefix_ % offset_ms % segment_->IdxPath().filename().string());
                 reached_idx_end_ = true;
                 return false;
             }
             pos_ = idx_endian_(pos_);
             if (idx_file_.read(reinterpret_cast<char*>(&next_), sizeof(std::streamoff)).gcount() < static_cast<std::streamsize>(sizeof(std::streamoff))) {
-                Logger::Trace(boost::format("%s : failed to read segment index (%s[ms] next) [%s]") % log_prefix_ % offset_ms % segment_->IdxPath().filename().string());
+                logger.Trace("failed to read segment index (next)", boost::format("%s : failed to read segment index (%s[ms] next) [%s]") % log_prefix_ % offset_ms % segment_->IdxPath().filename().string());
                 reached_idx_end_ = true;
                 return false;
             }
             next_ = idx_endian_(next_);
             dat_file_.open(segment_->DatPath().string(), std::ios::in | std::ios::binary);
             if (!dat_file_.is_open()) {
-                Logger::Warning(boost::format("%s : failed to open segment [%s]") % log_prefix_ % segment_->DatPath().filename().string());
+                logger.Warning(boost::format("%s : failed to open segment [%s]") % log_prefix_ % segment_->DatPath().filename().string());
                 return false;
             }
-            Logger::Debug(boost::format("%s : open segment [%s]") % log_prefix_ % segment_->DatPath().filename().string());
+            logger.Debug(boost::format("%s : open segment [%s]") % log_prefix_ % segment_->DatPath().filename().string());
             dat_file_.seekg(pos_);
             read_ = 0;
             pos_ns_ = offset * 1000ll * 1000 * idx_interval_.count(); // millisec to nanosec
@@ -1025,6 +1025,7 @@ protected:
         time_segment_t next_segment;
         std::mutex prefetch_mutex;
         std::thread prefetch_thread;
+        AntiRepeatLogger reader_logger(log_prefix);
         std::chrono::steady_clock::time_point base_time = std::chrono::steady_clock::now();
         while (sender->IsConnected()) {
             std::chrono::steady_clock::time_point tick = std::chrono::steady_clock::now();
@@ -1074,7 +1075,7 @@ protected:
                     reader.reset(new SegmentReader(log_prefix, segment.second, speed, idx_interval_, idx_endian_, baseTime));
                     if (burst) reader->SetBurst();
                 }
-                if (!reader || !reader->Initialize(offset_ns / 1000 / 1000, s3bucket_, s3bufsiz_)) {
+                if (!reader || !reader->Initialize(offset_ns / 1000 / 1000, s3bucket_, s3bufsiz_, reader_logger)) {
                     reader.reset();
                     if (gap == "break") {
                         break;
@@ -1127,7 +1128,7 @@ protected:
                 if (segment.second && segment.second->Continuous()) {
                     reader.reset(new SegmentReader(log_prefix, segment.second, speed, idx_interval_, idx_endian_, baseTime));
                     segment.second.reset();
-                    if (!reader->Initialize(0, s3bucket_, s3bufsiz_)) {
+                    if (!reader->Initialize(0, s3bucket_, s3bufsiz_, reader_logger)) {
                         reader.reset();
                     }
                 } else {
@@ -1158,7 +1159,8 @@ protected:
                             if (!next_segment.second || !next_segment.second->Continuous()) return;
                             try {
                                 next_reader.reset(new SegmentReader(log_prefix, next_segment.second, speed, idx_interval_, idx_endian_, baseTime));
-                                if (next_reader->Initialize(0, s3bucket_, s3bufsiz_)) return;
+                                AntiRepeatLogger prefetch_logger(log_prefix);
+                                if (next_reader->Initialize(0, s3bucket_, s3bufsiz_, prefetch_logger)) return;
                             } catch (std::exception& ex) {
                                 Logger::Warning(boost::format("%s : prefetch failed : %s") % log_prefix_ % ex.what());
                             } catch (...) {
