@@ -484,7 +484,7 @@ public:
         }
         return done;
     }
-    const Segment::ptr_t Segment() const {
+    Segment::ptr_t GetSegment() const {
         return segment_;
     }
 protected:
@@ -704,7 +704,7 @@ public:
     bool IsBurst() const {
         return burst_;
     }
-    const Segment::ptr_t Segment() const {
+    Segment::ptr_t GetSegment() const {
         return segment_;
     }
  protected:
@@ -1193,7 +1193,7 @@ protected:
         buf_t zero;
         writer->Write(tick, zero); // write last index
         writer->Close();
-        if (!s3folder_.empty()) queue2_.Push(Queue::task_t(new SegmentUploadTask(writer->Segment())));
+        if (!s3folder_.empty()) queue2_.Push(Queue::task_t(new SegmentUploadTask(writer->GetSegment())));
         return true;
     }
     virtual void RemoveExpiredSegments(const boost::posix_time::ptime& utc) {
@@ -1320,7 +1320,7 @@ protected:
             bool read = false;
             while (sender->IsConnected()) {
                 std::unique_lock<std::mutex> lock(mutex_);
-                bool latest_segment = writer_ && writer_->Segment() == reader->Segment();
+                bool latest_segment = writer_ && writer_->GetSegment() == reader->GetSegment();
                 lock.unlock();
                 buf.resize(bufsiz);
                 read = reader->Read(tick, buf, latest_segment);
@@ -1328,13 +1328,13 @@ protected:
                     break; // read or reached end of segment
                 }
                 // incase of latest segment, continue reading
-                assert(!reader->Segment()->S3Pushed());
+                assert(!reader->GetSegment()->S3Pushed());
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 base_time += std::chrono::nanoseconds(100);
                 continue;
             }
             if (!read) {
-                last_segment_path = reader->Segment()->DatPath();
+                last_segment_path = reader->GetSegment()->DatPath();
                 boost::posix_time::ptime at = startedAt + boost::posix_time::microseconds((tick - base_time).count() * speed / 1000); // nanosec to microsec
                 if (!CheckPlaybackPosition(at, speed, log_prefix)) {
                     break;
