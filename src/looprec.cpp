@@ -178,21 +178,238 @@ public:
 //----------------------------------------------------------------------------
 class SegmentWriter
 {
+    static constexpr size_t FILE_BUFFER_SIZE = 256 * 1024;
+#if defined(WIN32) || defined(WIN64)
+    struct FileWriter {
+        HANDLE handle_;
+        size_t expand_;
+        size_t pos_;
+        size_t alloc_;
+        Event::buf_t buf_;
+        std::string errmsg_;
+    public:
+        FileWriter(size_t expand) : handle_(INVALID_HANDLE_VALUE), expand_(expand), pos_(0), alloc_(0), buf_(), errmsg_() {
+            buf_.reserve(FILE_BUFFER_SIZE);
+        }
+        ~FileWriter() {
+            close();
+        }
+        void open(const std::string& path) {
+            close();
+            pos_ = 0;
+            alloc_ = 0;
+            buf_.resize(0);
+            errmsg_.clear();
+            handle_ = ::CreateFileA(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
+        }
+        void close() {
+            if (!is_open()) return;
+            flush();
+            if (errmsg_.empty() && !buf_.empty()) errmsg_ = "failed to write last data";
+            if (!::SetEndOfFile(handle_) && errmsg_.empty()) strerr(GetLastError(), errmsg_);
+            ::CloseHandle(handle_);
+            handle_ = INVALID_HANDLE_VALUE;
+        }
+        size_t write(const char* buf, size_t siz) {
+            size_t siz0 = siz;
+            while (siz) {
+                size_t bufpos = buf_.size();
+                if (bufpos >= FILE_BUFFER_SIZE && !write_buf()) break;
+                size_t written = std::min<size_t>(FILE_BUFFER_SIZE - bufpos, siz);
+                buf_.resize(bufpos + written);
+                ::memcpy(&buf_.at(bufpos), buf, written);
+                buf += written;
+                siz -= written;
+            }
+            if (!siz) errmsg_.clear();
+            if (siz && errmsg_.empty()) errmsg_ = "partial write";
+            return siz0 - siz;
+        }
+        void flush(bool deep = false) {
+            errmsg_.clear();
+            if (!write_buf() || !buf_.empty()) return;
+            if (deep && !::FlushFileBuffers(handle_)) strerr(GetLastError(), errmsg_);
+        }
+        size_t pos() const {
+            return pos_ + buf_.size();
+        }
+        bool is_open() const {
+            return handle_ != INVALID_HANDLE_VALUE;
+        }
+        const std::string& errmsg() const {
+            return errmsg_;
+        }
+    protected:
+        bool write_buf() {
+            if (buf_.empty()) return true;
+            if (expand_ && pos_ + buf_.size() > alloc_) {
+                alloc((pos_ + buf_.size()) / expand_ * expand_ + expand_);
+            }
+            const char* buf = &buf_.at(0);
+            size_t siz = buf_.size();
+            size_t siz0 = siz;
+            while (siz) {
+                DWORD written = 0;
+                if (!::WriteFile(handle_, buf, static_cast<DWORD>(std::min<size_t>(siz, MAXDWORD)), &written, NULL)) {
+                    strerr(GetLastError(), errmsg_);
+                    break;
+                }
+                if (written == 0) break;
+                buf += written;
+                siz -= written;
+            }
+            pos_ += siz0 - siz;
+            if (!siz) {
+                buf_.resize(0);
+                return true;
+            }
+            if (siz < siz0) {
+                ::memmove(&buf_.at(0), buf, siz);
+                buf_.resize(siz);
+                return true;
+            }
+            if (errmsg_.empty()) errmsg_ = "failed to write";
+            return false;
+        }
+        void alloc(size_t siz) {
+            if (alloc_ >= siz) return;
+            FILE_ALLOCATION_INFO fai = {0};
+            fai.AllocationSize.QuadPart = siz;
+            if (::SetFileInformationByHandle(handle_, FileAllocationInfo, &fai, sizeof(fai))) alloc_ = siz;
+        }
+        static void strerr(DWORD code, std::string& errmsg) {
+            DWORD lang = MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US);
+	        DWORD flags = FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS;
+	        LPVOID buf = NULL;
+	        if (::FormatMessageA(flags, NULL, code, lang, reinterpret_cast<LPSTR>(&buf), 0, NULL)) errmsg = static_cast<LPCSTR>(buf);
+	        if (buf) ::LocalFree(buf);
+            boost::algorithm::trim_right(errmsg); // remove crlf
+            if (errmsg.empty()) errmsg = "error";
+        }
+    };
+#else
+    struct FileWriter {
+        int fd_;
+        size_t expand_;
+        size_t pos_;
+        size_t alloc_;
+        Event::buf_t buf_;
+        std::string errmsg_;
+    public:
+        FileWriter(size_t expand) : fd_(-1), expand_(expand), pos_(0), alloc_(0), buf_(), errmsg_() {
+            buf_.reserve(FILE_BUFFER_SIZE);
+        }
+        ~FileWriter() {
+            close();
+        }
+        void open(const std::string& path) {
+            close();
+            pos_ = 0;
+            alloc_ = 0;
+            buf_.resize(0);
+            errmsg_.clear();
+            fd_ = ::open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+        }
+        void close() {
+            if (!is_open()) return;
+            flush();
+            if (errmsg_.empty() && !buf_.empty()) errmsg_ = "failed to write last data";
+            if (::ftruncate(fd_, pos_) == -1 && errmsg_.empty()) strerr(errno, errmsg_);
+            ::close(fd_);
+            fd_ = -1;
+        }
+        size_t write(const char* buf, size_t siz) {
+            size_t siz0 = siz;
+            while (siz) {
+                size_t bufpos = buf_.size();
+                if (bufpos >= FILE_BUFFER_SIZE && !write_buf()) break;
+                size_t written = std::min<size_t>(FILE_BUFFER_SIZE - bufpos, siz);
+                buf_.resize(bufpos + written);
+                ::memcpy(&buf_.at(bufpos), buf, written);
+                buf += written;
+                siz -= written;
+            }
+            if (!siz) errmsg_.clear();
+            if (siz && errmsg_.empty()) errmsg_ = "partial write";
+            return siz0 - siz;
+        }
+        void flush(bool deep = false) {
+            errmsg_.clear();
+            if (!write_buf() || !buf_.empty()) return;
+            if (deep && ::fsync(fd_) == -1) strerr(errno, errmsg_);
+        }
+        size_t pos() const {
+            return pos_ + buf_.size();
+        }
+        bool is_open() const {
+            return fd_ != -1;
+        }
+        const std::string& errmsg() const {
+            return errmsg_;
+        }
+    protected:
+        bool write_buf() {
+            if (buf_.empty()) return true;
+            if (expand_ && pos_ + buf_.size() > alloc_) {
+                alloc((pos_ + buf_.size()) / expand_ * expand_ + expand_);
+            }
+            const char* buf = &buf_.at(0);
+            size_t siz = buf_.size();
+            size_t siz0 = siz;
+            while (siz) {
+                ssize_t written = ::write(fd_, buf, siz);
+                if (written < 0) {
+                    if (errno == EINTR) continue;
+                    strerr(errno, errmsg_);
+                    break;
+                }
+                if (written == 0) break;
+                buf += written;
+                siz -= written;
+            }
+            pos_ += siz0 - siz;
+            if (!siz) {
+                buf_.resize(0);
+                return true;
+            }
+            if (siz < siz0) {
+                ::memmove(&buf_.at(0), buf, siz);
+                buf_.resize(siz);
+                return true;
+            }
+            if (errmsg_.empty()) errmsg_ = "failed to write";
+            return false;
+        }
+        void alloc(size_t siz) {
+            if (alloc_ >= siz) return;
+            if (::fallocate(fd_, FALLOC_FL_KEEP_SIZE, 0, static_cast<off_t>(siz)) == 0) alloc_ = siz;
+        }
+        static void strerr(int err, std::string& errmsg) {
+            char errbuf[256] = {'\0'};
+#if defined(__GLIBC__) && defined(_GNU_SOURCE)
+            errmsg = ::strerror_r(err, errbuf, sizeof(errbuf));
+#else
+            errmsg = ::strerror_r(err, errbuf, sizeof(errbuf)) == 0 ? errbuf : "";
+#endif
+            if (errmsg.empty()) errmsg = "error";
+        }
+    };
+#endif
     const std::string log_prefix_;
+    AntiRepeatLogger logger_;
     const Segment::ptr_t segment_;
-    std::ofstream dat_file_;
-    std::ofstream idx_file_;
+    FileWriter dat_file_;
+    FileWriter idx_file_;
     const std::chrono::milliseconds idx_interval_;
     const std::function<std::streamoff(std::streamoff)> idx_endian_;
     std::chrono::steady_clock::time_point idx_time_;
     std::streamoff pos_;
-    std::string last_err_;
 public:
     using ptr_t = std::shared_ptr<SegmentWriter>;
-    SegmentWriter(const std::string& log_prefix, Segment::ptr_t segment, const std::chrono::milliseconds& idx_interval
+    SegmentWriter(const std::string& log_prefix, Segment::ptr_t segment, size_t segment_expand, const std::chrono::milliseconds& idx_interval
         , std::function<std::streamoff(std::streamoff)> idx_endian, const std::chrono::steady_clock::time_point& idx_time)
-        : log_prefix_(log_prefix), segment_(segment), dat_file_(), idx_file_()
-        , idx_interval_(idx_interval), idx_endian_(idx_endian), idx_time_(idx_time), pos_(0), last_err_() {
+        : log_prefix_(log_prefix), logger_(log_prefix) , segment_(segment), dat_file_(segment_expand), idx_file_(1024)
+        , idx_interval_(idx_interval), idx_endian_(idx_endian), idx_time_(idx_time), pos_(0) {
     }
     virtual ~SegmentWriter() {
         Destroy();
@@ -201,16 +418,18 @@ public:
         if (!segment_) {
             return false;
         }
-        dat_file_.open(segment_->DatPath().string(), std::ios::out | std::ios::trunc | std::ios::binary);
+        dat_file_.open(segment_->DatPath().string());
         if (dat_file_.is_open()) {
-            Logger::Info(boost::format("%s : create segment [%s]") % log_prefix_ % segment_->DatPath().filename().string());
+            logger_.Info(boost::format("%s : create segment data [%s]") % log_prefix_ % segment_->DatPath().filename().string());
+        } else {
+            logger_.Warning(boost::format("%s : failed to create segment data [%s]") % log_prefix_ % segment_->DatPath().filename().string());
         }
-        idx_file_.open(segment_->IdxPath().string(), std::ios::out | std::ios::trunc | std::ios::binary);
+        idx_file_.open(segment_->IdxPath().string());
         if (idx_file_.is_open()) {
-            Logger::Debug(boost::format("%s : create segment index [%s]") % log_prefix_ % segment_->IdxPath().filename().string());
+            logger_.Debug(boost::format("%s : create segment index [%s]") % log_prefix_ % segment_->IdxPath().filename().string());
+        } else {
+            logger_.Warning(boost::format("%s : failed to create segment index [%s]") % log_prefix_ % segment_->IdxPath().filename().string());
         }
-        dat_file_.exceptions(std::ios_base::badbit);
-        idx_file_.exceptions(std::ios_base::badbit);
         return WriteIndex();
     }
     virtual void Destroy() {
@@ -219,13 +438,9 @@ public:
     virtual bool Write(const std::chrono::steady_clock::time_point& tick, const Event::buf_t& buf) {
         if (!dat_file_.is_open()) return false;
         if (!buf.empty()) {
-            try {
-                dat_file_.write(&buf.at(0), buf.size());
-            } catch (std::ios_base::failure& ex) {
-                if (ex.what() != last_err_) {
-                    last_err_ = ex.what();
-                    Logger::Warning(boost::format("%s : failed to write segment data [%s] : %s") % log_prefix_ % segment_->DatPath().filename().string() % last_err_);
-                }
+            dat_file_.write(&buf.at(0), buf.size());
+            if (!dat_file_.errmsg().empty()) {
+                logger_.Warning(boost::format("%s : failed to write segment data [%s] : %s") % log_prefix_ % segment_->DatPath().filename().string() % dat_file_.errmsg());
                 return false;
             }
         }
@@ -234,39 +449,37 @@ public:
             if (!WriteIndex()) return false;
             flush = true;
         }
-        if (!flush || Flush()) last_err_.clear();
+        if (!flush || Flush()) logger_.Clear();
         return true;
     }
     virtual void Close() {
-        try {
-            if (dat_file_.is_open()) dat_file_.close();
-        } catch (std::ios_base::failure& ex) {
-            Logger::Warning(boost::format("%s : failed to close segment data [%s] : %s") % log_prefix_ % segment_->DatPath().filename().string() % ex.what());
+        if (dat_file_.is_open()) {
+            dat_file_.close();
+            if (!dat_file_.errmsg().empty()) {
+                logger_.Warning(boost::format("%s : failed to close segment data [%s] : %s") % log_prefix_ % segment_->DatPath().filename().string() % dat_file_.errmsg());
+            }
         }
-        try {
-            if (idx_file_.is_open()) idx_file_.close();
-        } catch (std::ios_base::failure& ex) {
-            Logger::Warning(boost::format("%s : failed to close segment index [%s] : %s") % log_prefix_ % segment_->IdxPath().filename().string() % ex.what());
+        if (idx_file_.is_open()) {
+            idx_file_.close();
+            if (!idx_file_.errmsg().empty()) {
+                logger_.Warning(boost::format("%s : failed to close segment index [%s] : %s") % log_prefix_ % segment_->IdxPath().filename().string() % idx_file_.errmsg());
+            }
         }
     }
     virtual bool Flush() {
         bool done = true;
-        try {
-            if (dat_file_.is_open()) dat_file_.flush();
-        } catch (std::ios_base::failure& ex) {
-            done = false;
-            if (ex.what() != last_err_) {
-                last_err_ = ex.what();
-                Logger::Warning(boost::format("%s : failed to flush segment data [%s] : %s") % log_prefix_ % segment_->DatPath().filename().string() % last_err_);
+        if (dat_file_.is_open()) {
+            dat_file_.flush();
+            if (!dat_file_.errmsg().empty()) {
+                done = false;
+                logger_.Warning(boost::format("%s : failed to flush segment data [%s] : %s") % log_prefix_ % segment_->DatPath().filename().string() % dat_file_.errmsg());
             }
         }
-        try {
-            if (idx_file_.is_open()) idx_file_.flush();
-        } catch (std::ios_base::failure& ex) {
-            done = false;
-            if (ex.what() != last_err_) {
-                last_err_ = ex.what();
-                Logger::Warning(boost::format("%s : failed to flush segment index [%s] : %s") % log_prefix_ % segment_->IdxPath().filename().string() % last_err_);
+        if (idx_file_.is_open()) {
+            idx_file_.flush();
+            if (!idx_file_.errmsg().empty()) {
+                done = false;
+                logger_.Warning(boost::format("%s : failed to flush segment index [%s] : %s") % log_prefix_ % segment_->IdxPath().filename().string() % idx_file_.errmsg());
             }
         }
         return done;
@@ -277,15 +490,11 @@ public:
 protected:
     virtual bool WriteIndex() {
         if (!dat_file_.is_open() || !idx_file_.is_open()) return false;
-        pos_ = std::max<std::streamoff>(pos_, static_cast<std::streamoff>(dat_file_.tellp()));
+        pos_ = std::max<std::streamoff>(pos_, dat_file_.pos());
         std::streamoff pos = idx_endian_(pos_);
-        try {
-            idx_file_.write(reinterpret_cast<const char*>(&pos), sizeof(std::streamoff));
-        } catch (std::ios_base::failure& ex) {
-            if (ex.what() != last_err_) {
-                last_err_ = ex.what();
-                Logger::Warning(boost::format("%s : failed to write segment index [%s] : %s") % log_prefix_ % segment_->IdxPath().filename().string() % last_err_);
-            }
+        idx_file_.write(reinterpret_cast<const char*>(&pos), sizeof(std::streamoff));
+        if (!idx_file_.errmsg().empty()) {
+            logger_.Warning(boost::format("%s : failed to write segment index [%s] : %s") % log_prefix_ % segment_->IdxPath().filename().string() % idx_file_.errmsg());
             return false;
         }
         idx_time_ += idx_interval_;
@@ -768,6 +977,7 @@ class LoopRec::Impl
     size_t s3bufsiz_;
     std::string dat_ext_;
     std::string idx_ext_;
+    size_t segment_expand_;
     std::chrono::seconds segment_duration_;
     std::chrono::seconds total_duration_;
     std::chrono::milliseconds idx_interval_;
@@ -800,6 +1010,7 @@ public:
             dat_ext_ = "." + boost::trim_left_copy_if(conf_["data_extension"].to<std::string>("dat"), boost::is_any_of("."));
             idx_ext_ = "." + boost::trim_left_copy_if(conf_["index_extension"].to<std::string>("idx"), boost::is_any_of("."));
             if (dat_ext_ == idx_ext_) idx_ext_ += "_idx";
+            segment_expand_ = std::min<size_t>(conf_["segment_expand"].to<size_t>(1024 * 1024 * 100), 1024 * 1024 * 1000);
             uint32_t segdur = std::max<uint32_t>(conf_["segment_duration"].to<uint32_t>(600), 10);
             segment_duration_ = std::chrono::seconds(segdur);
             total_duration_ = std::chrono::seconds(std::max<uint32_t>(conf_["total_duration"].to<uint32_t>(3600), segdur));
@@ -954,7 +1165,7 @@ protected:
             boost::posix_time::ptime utc = boost::posix_time::microsec_clock::universal_time();
             boost::filesystem::path path = dir_ / (boost::posix_time::to_iso_string(utc) + suffix + dat_ext_);
             Segment::ptr_t segment(new Segment(log_prefix_, path, idx_ext_, s3bucket_, s3folder_));
-            SegmentWriter::ptr_t writer(new SegmentWriter(log_prefix_, segment, idx_interval_, idx_endian_, tick));
+            SegmentWriter::ptr_t writer(new SegmentWriter(log_prefix_, segment, segment_expand_, idx_interval_, idx_endian_, tick));
             if (segment->Initialize() && writer->Initialize()) {
                 std::lock_guard<std::mutex> lock(mutex_);
                 segments_[utc] = segment;
