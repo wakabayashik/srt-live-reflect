@@ -284,7 +284,7 @@ class SegmentWriter
 	        if (::FormatMessageA(flags, NULL, code, lang, reinterpret_cast<LPSTR>(&buf), 0, NULL)) errmsg = static_cast<LPCSTR>(buf);
 	        if (buf) ::LocalFree(buf);
             boost::algorithm::trim_right(errmsg); // remove crlf
-            if (errmsg.empty()) errmsg = "error";
+            if (errmsg.empty()) errmsg = (boost::format("error(%u)") % code).str();
         }
     };
 #else
@@ -391,7 +391,7 @@ class SegmentWriter
 #else
             errmsg = ::strerror_r(err, errbuf, sizeof(errbuf)) == 0 ? errbuf : "";
 #endif
-            if (errmsg.empty()) errmsg = "error";
+            if (errmsg.empty()) errmsg = (boost::format("error(%d)") % err).str();
         }
     };
 #endif
