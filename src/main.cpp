@@ -122,10 +122,10 @@ public:
             listener_->Destroy();
         listener_.reset();
         for (std::pair<std::string, Receiver::ptr_t> kv : receivers_)
-            kv.second->Destroy();
+            if (kv.second) kv.second->Destroy();
         receivers_.clear();
         for (std::pair<std::string, LoopRec::ptr_t> kv : loopRecs_)
-            kv.second->Destroy();
+            if (kv.second) kv.second->Destroy();
         loopRecs_.clear();
     }
     virtual std::string app() const {
